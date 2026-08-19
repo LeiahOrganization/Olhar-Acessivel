@@ -1,0 +1,39 @@
+# Publica a interface (pasta frontend/) no GitHub Pages a cada push na main.
+# O aplicativo funciona sozinho no Pages: fala direto com o modelo de visao e
+# usa a voz do proprio aparelho. O backend em backend/ e opcional.
+
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Empacotar a interface
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend
+
+      - name: Publicar
+        id: deploy
+        uses: actions/deploy-pages@v4
