@@ -1,0 +1,109 @@
+/* ============================================================
+   OLHAR ACESSIVEL — paleta do projeto.
+   Ajuste aqui e o aplicativo inteiro muda.
+
+   IFCE ....: verde institucional (identidade do Instituto Federal)
+   LEIAH ...: azul-petroleo do laboratorio (cor de acento)
+
+   Todos os pares texto/fundo usados na interface foram conferidos
+   para contraste minimo 4.5:1 (WCAG 2.1 AA) nos dois temas.
+   ============================================================ */
+
+:root {
+  /* ---------- MARCA ---------- */
+  --ifce-verde:        #0f7b3e;
+  --ifce-verde-escuro: #0a5b2d;
+  --ifce-verde-claro:  #2fa05e;
+  --leiah-azul:        #0f5f74;
+  --leiah-azul-claro:  #17849f;
+  --leiah-ciano:       #35c2c9;
+
+  /* ---------- SUPERFICIES (tema claro) ---------- */
+  --bg:            #f4f7f5;
+  --surface:       #ffffff;
+  --surface-2:     #eef3ef;
+  --surface-3:     #e2eae4;
+  --border:        #d3ddd6;
+  --border-forte:  #b6c5bb;
+
+  /* ---------- TEXTO ---------- */
+  --texto:           #14231a;
+  --texto-suave:     #41564a;
+  --texto-fraco:     #5e7368;
+  --texto-invertido: #ffffff;
+
+  /* ---------- SEMANTICAS ---------- */
+  --primaria:       var(--ifce-verde);
+  --primaria-hover: var(--ifce-verde-escuro);
+  --acento:         var(--leiah-azul);
+  --acento-hover:   var(--leiah-azul-claro);
+  --sucesso:        #1a7f4b;
+  --alerta:         #8a5600;
+  --erro:           #b3261e;
+  --foco:           #0a5b2d;
+
+  /* ---------- FORMA ---------- */
+  --raio-p: 10px;
+  --raio-m: 16px;
+  --raio-g: 24px;
+  --raio-full: 999px;
+  --sombra-1: 0 1px 2px rgba(16, 40, 26, .07);
+  --sombra-2: 0 4px 14px rgba(16, 40, 26, .10);
+  --sombra-3: 0 12px 32px rgba(16, 40, 26, .16);
+
+  /* ---------- TIPOGRAFIA ---------- */
+  --fonte: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --fonte-mono: "SFMono-Regular", "JetBrains Mono", Consolas, monospace;
+
+  /* ---------- LAYOUT ---------- */
+  --largura-app: 560px;      /* o app e de celular; no desktop fica centralizado */
+  --barra-h: 68px;           /* barra de navegacao inferior */
+  --alvo-min: 48px;          /* alvo de toque minimo (WCAG 2.5.5) */
+}
+
+/* ---------- TEMA ESCURO ---------- */
+:root[data-tema="escuro"] {
+  --bg:           #0e1512;
+  --surface:      #16201b;
+  --surface-2:    #1d2a23;
+  --surface-3:    #26362d;
+  --border:       #2c3d34;
+  --border-forte: #445a4c;
+
+  --texto:        #e7f0ea;
+  --texto-suave:  #b3c6ba;
+  --texto-fraco:  #8ba295;
+
+  --primaria:       #3fb573;
+  --primaria-hover: #59c98a;
+  --acento:         #2ea3bf;
+  --acento-hover:   #48bcd6;
+  --sucesso:        #46c286;
+  --alerta:         #e0a437;
+  --erro:           #f2857c;
+  --foco:           #7fe3b5;
+
+  --sombra-1: 0 1px 2px rgba(0, 0, 0, .35);
+  --sombra-2: 0 4px 14px rgba(0, 0, 0, .42);
+  --sombra-3: 0 12px 32px rgba(0, 0, 0, .55);
+}
+
+/* ---------- ALTO CONTRASTE (preferencia do usuario, no ajuste) ---------- */
+:root[data-contraste="alto"] {
+  --bg:          #000000;
+  --surface:     #000000;
+  --surface-2:   #101010;
+  --surface-3:   #1a1a1a;
+  --border:      #ffffff;
+  --border-forte:#ffffff;
+  --texto:       #ffffff;
+  --texto-suave: #f0f0f0;
+  --texto-fraco: #d8d8d8;
+  --primaria:      #ffe500;
+  --primaria-hover:#fff45c;
+  --acento:        #00e5ff;
+  --acento-hover:  #7df3ff;
+  --texto-invertido: #000000;
+  --foco:          #ffe500;
+  --sombra-1: none; --sombra-2: none; --sombra-3: none;
+}

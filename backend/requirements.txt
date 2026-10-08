@@ -1,0 +1,17 @@
+# --- API ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# --- VLM (cliente OpenAI-compativel: Groq, Ollama, vLLM, Google AI Studio) ---
+openai==1.59.6
+httpx==0.28.1
+
+# --- Pre-processamento das imagens (EXIF, redimensionamento) ---
+pillow==11.1.0
+
+# --- Sintese de voz gratuita (Etapa 3) ---
+edge-tts==7.2.8          # vozes neurais pt-BR, gratuito
+gTTS==2.5.4              # alternativa de reserva
