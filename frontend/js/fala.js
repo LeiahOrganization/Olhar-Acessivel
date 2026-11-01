@@ -3,10 +3,6 @@
 // Dois caminhos, nesta ordem de preferencia:
 //   1. servidor do projeto  -> MP3 com voz neural pt-BR (Edge TTS / gTTS);
 //   2. voz do proprio aparelho -> Web Speech API, funciona ate sem internet.
-//
-// O elemento de audio e "destravado" no primeiro toque da pessoa usuaria
-// porque iOS e Android so deixam tocar som a partir de um gesto -- e a
-// descricao chega segundos depois do toque.
 
 import { config } from "./config.js";
 import * as servidor from "./servidor.js";
@@ -51,7 +47,6 @@ export function destravar() {
     () => { audio.pause(); audio.currentTime = 0; },
     () => { /* alguns navegadores so liberam no primeiro play real */ }
   );
-  // o sintetizador do navegador tambem precisa de um gesto para "acordar"
   if ("speechSynthesis" in window) speechSynthesis.getVoices();
 }
 
@@ -62,12 +57,25 @@ export function parar() {
 }
 
 // ------------------------------------------------------------ vozes locais
+function ehVozAltaQualidade(voz) {
+  const nome = (voz.name || "").toLowerCase();
+  return /google|natural|neural|online|premium|enhanced/.test(nome);
+}
+
 function vozesLocais() {
   if (!("speechSynthesis" in window)) return [];
-  return speechSynthesis
+  const vozesPt = speechSynthesis
     .getVoices()
-    .filter((v) => v.lang?.toLowerCase().startsWith("pt"))
-    .map((v) => ({ id: `local:${v.voiceURI}`, rotulo: `${v.name} (aparelho)`, origem: "local" }));
+    .filter((v) => v.lang?.toLowerCase().startsWith("pt"));
+
+  // Ordena para que vozes de alta qualidade (Google, Natural, etc.) fiquem no topo da lista
+  vozesPt.sort((a, b) => Number(ehVozAltaQualidade(b)) - Number(ehVozAltaQualidade(a)));
+
+  return vozesPt.map((v) => ({
+    id: `local:${v.voiceURI}`,
+    rotulo: `${v.name} (aparelho)`,
+    origem: "local",
+  }));
 }
 
 export async function vozesDisponiveis(temServidor) {
@@ -89,13 +97,24 @@ export async function vozesDisponiveis(temServidor) {
 function escolherVozLocal() {
   if (!("speechSynthesis" in window)) return null;
   const vozes = speechSynthesis.getVoices();
+
+  // 1. Se o usuário escolheu uma voz específica nos Ajustes, usa ela
   const escolhida = config.voz?.startsWith("local:")
     ? vozes.find((v) => `local:${v.voiceURI}` === config.voz)
     : null;
+
+  if (escolhida) return escolhida;
+
+  // 2. Filtra apenas vozes em português
+  const vozesPt = vozes.filter((v) => v.lang?.toLowerCase().startsWith("pt"));
+
+  // 3. Procura por voz natural / neural / Google em pt-BR
+  const melhorVoz = vozesPt.find((v) => ehVozAltaQualidade(v));
+
   return (
-    escolhida ||
-    vozes.find((v) => v.lang?.toLowerCase() === "pt-br") ||
-    vozes.find((v) => v.lang?.toLowerCase().startsWith("pt")) ||
+    melhorVoz ||
+    vozesPt.find((v) => v.lang?.toLowerCase() === "pt-br") ||
+    vozesPt[0] ||
     null
   );
 }
@@ -111,12 +130,16 @@ function falarNoAparelho(texto) {
     const voz = escolherVozLocal();
     if (voz) fala.voice = voz;
     fala.lang = voz?.lang || "pt-BR";
-    fala.rate = Number(config.velocidade) || 1;
+    
+    // Ajuste de velocidade (padronizado em 0.95 se a configuracao for 1 para clareza da diccao)
+    const velBase = Number(config.velocidade) || 1;
+    fala.rate = velBase === 1 ? 0.95 : velBase;
+    fala.pitch = 1.0;
+
     fala.onstart = () => anunciarEstado(true);
     fala.onend = () => { anunciarEstado(false); resolve(); };
     fala.onerror = (evento) => {
       anunciarEstado(false);
-      // "interrupted"/"canceled" acontecem quando a pessoa manda parar
       if (evento.error === "interrupted" || evento.error === "canceled") resolve();
       else reject(new Error("Falha na voz do aparelho."));
     };
@@ -144,8 +167,7 @@ function paraPercentual(velocidade) {
 
 /**
  * Fala a descricao. Tenta o servidor quando ele existe e a voz escolhida e
- * dele; cai para a voz do aparelho em qualquer falha -- quem depende do audio
- * nao pode ficar sem resposta.
+ * dele; cai para a voz do aparelho em qualquer falha.
  */
 export async function falar(texto, { temServidor = false } = {}) {
   parar();
