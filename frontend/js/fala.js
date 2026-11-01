@@ -1,8 +1,9 @@
 // Saida em audio da descricao.
 //
-// Dois caminhos, nesta ordem de preferencia:
-//   1. servidor do projeto  -> MP3 com voz neural pt-BR (Edge TTS / gTTS);
-//   2. voz do proprio aparelho -> Web Speech API, funciona ate sem internet.
+// Ordem de preferencia:
+//   1. Servidor do projeto (Edge TTS / voz neural no backend)
+//   2. Voz online em MP3 (Google TTS - fluida e natural)
+//   3. Voz do aparelho (Web Speech API - funciona offline)
 
 import { config } from "./config.js";
 import * as servidor from "./servidor.js";
@@ -37,7 +38,7 @@ export function aoMudarEstado(callback) {
   ouvintes.push(callback);
 }
 
-/** Chamar no primeiro toque da tela: libera o audio nos navegadores moveis. */
+/** Libera o audio nos navegadores no primeiro toque. */
 export function destravar() {
   if (destravado) return;
   destravado = true;
@@ -45,7 +46,7 @@ export function destravar() {
   audio.src = SILENCIO;
   audio.play().then(
     () => { audio.pause(); audio.currentTime = 0; },
-    () => { /* alguns navegadores so liberam no primeiro play real */ }
+    () => {}
   );
   if ("speechSynthesis" in window) speechSynthesis.getVoices();
 }
@@ -56,26 +57,42 @@ export function parar() {
   anunciarEstado(false);
 }
 
-// ------------------------------------------------------------ vozes locais
-function ehVozAltaQualidade(voz) {
-  const nome = (voz.name || "").toLowerCase();
-  return /google|natural|neural|online|premium|enhanced/.test(nome);
+// ------------------------------------------------------------ VOZ ONLINE (MP3)
+async function falarComGoogleTTS(texto) {
+  // Limita o tamanho do bloco para a API pública de áudio
+  const trecho = texto.slice(0, 200); 
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(trecho)}&tl=pt-BR&client=tw-ob`;
+
+  const audio = elementoAudio();
+  if (urlAtual) URL.revokeObjectURL(urlAtual);
+  
+  audio.src = url;
+  audio.playbackRate = Number(config.velocidade) || 1;
+
+  await audio.play();
+  return new Promise((resolve) => {
+    audio.onended = () => {
+      anunciarEstado(false);
+      resolve();
+    };
+    audio.onerror = () => {
+      anunciarEstado(false);
+      resolve();
+    };
+  });
 }
 
+// ------------------------------------------------------------ VOZES LOCAIS (OFFLINE)
 function vozesLocais() {
   if (!("speechSynthesis" in window)) return [];
-  const vozesPt = speechSynthesis
+  return speechSynthesis
     .getVoices()
-    .filter((v) => v.lang?.toLowerCase().startsWith("pt"));
-
-  // Ordena para que vozes de alta qualidade (Google, Natural, etc.) fiquem no topo da lista
-  vozesPt.sort((a, b) => Number(ehVozAltaQualidade(b)) - Number(ehVozAltaQualidade(a)));
-
-  return vozesPt.map((v) => ({
-    id: `local:${v.voiceURI}`,
-    rotulo: `${v.name} (aparelho)`,
-    origem: "local",
-  }));
+    .filter((v) => v.lang?.toLowerCase().startsWith("pt"))
+    .map((v) => ({
+      id: `local:${v.voiceURI}`,
+      rotulo: `${v.name} (aparelho)`,
+      origem: "local",
+    }));
 }
 
 export async function vozesDisponiveis(temServidor) {
@@ -94,53 +111,22 @@ export async function vozesDisponiveis(temServidor) {
   }
 }
 
-function escolherVozLocal() {
-  if (!("speechSynthesis" in window)) return null;
-  const vozes = speechSynthesis.getVoices();
-
-  // 1. Se o usuário escolheu uma voz específica nos Ajustes, usa ela
-  const escolhida = config.voz?.startsWith("local:")
-    ? vozes.find((v) => `local:${v.voiceURI}` === config.voz)
-    : null;
-
-  if (escolhida) return escolhida;
-
-  // 2. Filtra apenas vozes em português
-  const vozesPt = vozes.filter((v) => v.lang?.toLowerCase().startsWith("pt"));
-
-  // 3. Procura por voz natural / neural / Google em pt-BR
-  const melhorVoz = vozesPt.find((v) => ehVozAltaQualidade(v));
-
-  return (
-    melhorVoz ||
-    vozesPt.find((v) => v.lang?.toLowerCase() === "pt-br") ||
-    vozesPt[0] ||
-    null
-  );
-}
-
 function falarNoAparelho(texto) {
   return new Promise((resolve, reject) => {
     if (!("speechSynthesis" in window)) {
-      reject(new Error("Este navegador não tem síntese de voz."));
+      reject(new Error("Sem síntese de voz disponível."));
       return;
     }
     speechSynthesis.cancel();
     const fala = new SpeechSynthesisUtterance(texto);
-    const voz = escolherVozLocal();
-    if (voz) fala.voice = voz;
-    fala.lang = voz?.lang || "pt-BR";
-    
-    // Ajuste de velocidade (padronizado em 0.95 se a configuracao for 1 para clareza da diccao)
-    const velBase = Number(config.velocidade) || 1;
-    fala.rate = velBase === 1 ? 0.95 : velBase;
-    fala.pitch = 1.0;
+    fala.lang = "pt-BR";
+    fala.rate = Number(config.velocidade) || 1;
 
     fala.onstart = () => anunciarEstado(true);
     fala.onend = () => { anunciarEstado(false); resolve(); };
-    fala.onerror = (evento) => {
+    fala.onerror = (e) => {
       anunciarEstado(false);
-      if (evento.error === "interrupted" || evento.error === "canceled") resolve();
+      if (e.error === "interrupted" || e.error === "canceled") resolve();
       else reject(new Error("Falha na voz do aparelho."));
     };
     speechSynthesis.speak(fala);
@@ -166,38 +152,42 @@ function paraPercentual(velocidade) {
 }
 
 /**
- * Fala a descricao. Tenta o servidor quando ele existe e a voz escolhida e
- * dele; cai para a voz do aparelho em qualquer falha.
+ * Função principal de fala
  */
 export async function falar(texto, { temServidor = false } = {}) {
   parar();
   const limpo = String(texto || "").trim();
   if (!limpo) return "vazio";
 
-  const preferirServidor = temServidor && !config.voz?.startsWith("local:");
-  if (preferirServidor) {
+  // 1. Tenta o servidor do projeto se estiver rodando
+  if (temServidor && !config.voz?.startsWith("local:")) {
     try {
       await falarComServidor(limpo);
       return "servidor";
-    } catch {
-      /* segue para a voz do aparelho */
-    }
+    } catch {}
   }
+
+  // 2. Tenta a voz online MP3 (Google TTS)
+  try {
+    await falarComGoogleTTS(limpo);
+    return "online";
+  } catch {}
+
+  // 3. Fallback para a voz do aparelho
   await falarNoAparelho(limpo);
   return "aparelho";
 }
 
-// ------------------------------------------------------ ditado da pergunta
+// ------------------------------------------------------ DITADO DA PERGUNTA
 export function ditadoDisponivel() {
   return "webkitSpeechRecognition" in window || "SpeechRecognition" in window;
 }
 
-/** Escuta uma pergunta curta e devolve o texto reconhecido. */
 export function ouvirPergunta() {
   return new Promise((resolve, reject) => {
     const Reconhecimento = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Reconhecimento) {
-      reject(new Error("Este navegador não reconhece voz. Digite a pergunta."));
+      reject(new Error("Reconhecimento de voz indisponível neste navegador."));
       return;
     }
     const reconhecedor = new Reconhecimento();
@@ -205,7 +195,7 @@ export function ouvirPergunta() {
     reconhecedor.interimResults = false;
     reconhecedor.maxAlternatives = 1;
     reconhecedor.onresult = (evento) => resolve(evento.results[0][0].transcript);
-    reconhecedor.onerror = () => reject(new Error("Não consegui ouvir. Tente de novo."));
+    reconhecedor.onerror = () => reject(new Error("Não consegui ouvir. Tente novamente."));
     reconhecedor.onend = () => resolve("");
     reconhecedor.start();
   });
