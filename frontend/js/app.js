@@ -1,4 +1,11 @@
-// Olhar Acessível — controlador principal
+// Olhar Acessivel — controlador da interface.
+//
+// O aplicativo tem dois modos de operacao, decididos sozinho ao abrir:
+//   MODO DIRETO   (padrao no GitHub Pages): o navegador fala com o modelo de
+//                 visao e usa a voz do proprio aparelho. Nao precisa servidor.
+//   MODO SERVIDOR (quando o backend do projeto responde): audiodescricao e voz
+//                 neural vem do servidor, e o banco de imagens e as avaliacoes
+//                 ficam centralizados para a pesquisa.
 
 import { config, salvar, baseServidor } from "./config.js";
 import { MODOS } from "./prompts.js";
@@ -16,7 +23,7 @@ import {
 const estado = {
   temServidor: false,
   saudeServidor: null,
-  atual: null,
+  atual: null,          // ultima descricao gerada
   ocupado: false,
   filtroBanco: "",
 };
@@ -29,43 +36,7 @@ const CRITERIOS = [
   ["neutralidade", "Neutralidade — sem opinião ou exagero?"],
 ];
 
-// NAVEGAÇÃO
-function irParaVista(destino) {
-  $$(".vista").forEach((vista) => {
-    vista.dataset.ativa = String(vista.dataset.vista === destino);
-  });
-
-  $$(".barra__item").forEach((item) => {
-    if (item.dataset.ir === destino) item.setAttribute("aria-current", "page");
-    else item.removeAttribute("aria-current");
-  });
-
-  const barra = $(".barra");
-  if (barra) {
-    barra.hidden = (destino === "login" || destino === "setup-chave");
-  }
-
-  document.querySelector(`.vista[data-vista="${destino}"] h1`)?.focus?.();
-}
-
-function verificarFluxoAcesso() {
-  if (!config.usuarioLogado) {
-    irParaVista("login");
-    anunciar("Tela de login.");
-    return;
-  }
-
-  if (!config.apiKey && !estado.temServidor) {
-    irParaVista("setup-chave");
-    anunciar("Informe a chave da API.");
-    return;
-  }
-
-  irParaVista("capturar");
-  ligarCamera();
-}
-
-// INÍCIO
+// ==================================================================== INICIO
 async function iniciar() {
   aplicarAparencia();
   preencherAjustes();
@@ -75,26 +46,26 @@ async function iniciar() {
   ligarEventos();
   registrarServiceWorker();
 
+  const camerinha = ligarCamera();          // sobe em paralelo: abre mais rapido
   await detectarServidor();
   await carregarVozes();
   atualizarPainelSistema();
+  mostrarBlocoChave();
 
-  verificarFluxoAcesso();
-
-  await Promise.all([renderizarHistorico(), renderizarBanco()]);
+  await Promise.all([camerinha, renderizarHistorico(), renderizarBanco()]);
 }
 
 function registrarServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol === "file:") return;
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  navigator.serviceWorker.register("sw.js").catch(() => {
+    /* sem cache offline; o aplicativo continua funcionando online */
+  });
 }
 
 async function detectarServidor() {
   const status = $("#status");
   const texto = $("#status-texto");
-  if (!status || !texto) return;
-
   status.dataset.estado = "carregando";
   texto.textContent = "Verificando…";
 
@@ -115,14 +86,18 @@ async function detectarServidor() {
   }
 }
 
-// CÂMERA
+function mostrarBlocoChave() {
+  $("#bloco-chave").hidden = estado.temServidor || Boolean(config.apiKey);
+}
+
+// ==================================================================== CAMERA
 async function ligarCamera() {
   const video = $("#video");
-  if (!video) return;
-  const mostrandoFoto = () => !$("#foto-previa")?.hidden;
+  // se ja existe uma foto na tela, a camera nao pode voltar por cima dela
+  const mostrandoFoto = () => !$("#foto-previa").hidden;
 
   if (!camera.suportaStream()) {
-    if (!mostrandoFoto() && $("#visor-vazio")) $("#visor-vazio").hidden = false;
+    if (!mostrandoFoto()) $("#visor-vazio").hidden = false;
     video.hidden = true;
     return;
   }
@@ -130,48 +105,48 @@ async function ligarCamera() {
     await camera.ligar(video);
     if (mostrandoFoto()) return;
     video.hidden = false;
-    if ($("#visor-vazio")) $("#visor-vazio").hidden = true;
+    $("#visor-vazio").hidden = true;
   } catch (erro) {
     video.hidden = true;
-    if ($("#visor-vazio .visor__texto")) {
-      $("#visor-vazio .visor__texto").textContent = "Toque aqui para abrir a câmera do aparelho";
-    }
-    if (!mostrandoFoto() && $("#visor-vazio")) $("#visor-vazio").hidden = false;
+    $("#visor-vazio .visor__texto").textContent =
+      "Toque aqui para abrir a câmera do aparelho";
+    if (!mostrandoFoto()) $("#visor-vazio").hidden = false;
+    console.warn(camera.traduzirErro(erro));
   }
 }
 
-// CAPTURA
+// ================================================================== CAPTURA
 async function capturar() {
   if (estado.ocupado) return;
   fala.destravar();
   limparErro();
 
   if (!estado.temServidor && !config.apiKey) {
-    mostrarErro("Informe a chave da API para começar.");
-    verificarFluxoAcesso();
+    mostrarErro("Informe a chave da API para começar. O campo está no topo desta tela.");
+    $("#campo-chave").focus();
     return;
   }
 
   const video = $("#video");
-  if (camera.ativa() && video?.videoWidth) {
+  if (camera.ativa() && video.videoWidth) {
     vibrar(35);
     const foto = await imagem.doVideo(video);
     await descrever(foto);
   } else {
-    $("#arquivo-camera")?.click();
+    // sem stream ao vivo: abre a camera nativa do sistema
+    $("#arquivo-camera").click();
   }
 }
 
 async function descrever(foto) {
   estado.ocupado = true;
   const carregando = $("#visor-carregando");
-  if (carregando) carregando.hidden = false;
-
+  carregando.hidden = false;
   $("#foto-previa").src = foto.dataUrl;
   $("#foto-previa").hidden = false;
-  if ($("#video")) $("#video").hidden = true;
-  if ($("#visor-vazio")) $("#visor-vazio").hidden = true;
-  if ($("#btn-capturar")) $("#btn-capturar").disabled = true;
+  $("#video").hidden = true;
+  $("#visor-vazio").hidden = true;
+  $("#btn-capturar").disabled = true;
   anunciar("Foto tirada. Gerando a descrição.");
 
   const inicio = performance.now();
@@ -226,18 +201,17 @@ async function descrever(foto) {
 
     renderizarHistorico();
   } catch (erro) {
-    if ($("#resultado")) $("#resultado").hidden = true;
+    $("#resultado").hidden = true;
     mostrarErro(erro.message || "Não foi possível gerar a descrição.");
   } finally {
-    if (carregando) carregando.hidden = true;
-    if ($("#btn-capturar")) $("#btn-capturar").disabled = false;
+    carregando.hidden = true;
+    $("#btn-capturar").disabled = false;
     estado.ocupado = false;
   }
 }
 
 function prepararResultadoEmBranco(modo, pergunta) {
   const alvo = $("#resultado");
-  if (!alvo) return;
   alvo.hidden = false;
   $("#resultado-texto").textContent = "";
   const meta = $("#resultado-meta");
@@ -247,7 +221,6 @@ function prepararResultadoEmBranco(modo, pergunta) {
 
 function mostrarResultado(registro) {
   const alvo = $("#resultado");
-  if (!alvo) return;
   alvo.hidden = false;
   $("#resultado-texto").textContent = registro.descricao;
 
@@ -263,16 +236,18 @@ function mostrarResultado(registro) {
   $("#resultado-texto").focus();
 }
 
-// ÁUDIO
+// ==================================================================== AUDIO
 async function ouvir(texto, { automatico = false } = {}) {
   const conteudo = texto || estado.atual?.descricao;
   if (!conteudo) return;
   try {
     await fala.falar(conteudo, { temServidor: estado.temServidor });
   } catch (erro) {
+    // navegadores moveis so tocam som depois de um toque da pessoa usuaria;
+    // quando a fala automatica e barrada, basta convidar ao toque
     if (automatico) {
-      anunciar("Descrição pronta. Toque em ouvir descrição.");
-      $("#btn-ouvir")?.focus();
+      anunciar("Descrição pronta. Toque em ouvir descrição para escutar.");
+      $("#btn-ouvir").focus();
       return;
     }
     mostrarErro(erro.message || "Não consegui falar a descrição.");
@@ -280,33 +255,33 @@ async function ouvir(texto, { automatico = false } = {}) {
 }
 
 function alternarBotoesAudio(tocando) {
-  if ($("#btn-ouvir")) $("#btn-ouvir").hidden = tocando;
-  if ($("#btn-parar")) $("#btn-parar").hidden = !tocando;
+  $("#btn-ouvir").hidden = tocando;
+  $("#btn-parar").hidden = !tocando;
 }
 
 async function carregarVozes() {
   const seletor = $("#sel-voz");
-  if (!seletor) return;
   const preencher = async () => {
     const vozes = await fala.vozesDisponiveis(estado.temServidor);
     seletor.replaceChildren();
-    seletor.appendChild(new Option("Automática (melhor voz)", ""));
+    const automatica = new Option("Automática (melhor voz disponível)", "");
+    seletor.appendChild(automatica);
     for (const voz of vozes) seletor.appendChild(new Option(voz.rotulo, voz.id));
     seletor.value = config.voz || "";
   };
   await preencher();
+  // no Chrome a lista de vozes chega depois do primeiro carregamento
   if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = preencher;
 }
 
-// HISTÓRICO
+// ================================================================ HISTORICO
 async function renderizarHistorico() {
   const lista = $("#lista-historico");
-  if (!lista) return;
   const registros = await bd.descricoes.listar(40);
   lista.setAttribute("aria-busy", "false");
 
   if (!registros.length) {
-    lista.replaceChildren(criarVazio("Nenhuma descrição ainda."));
+    lista.replaceChildren(criarVazio("Nenhuma descrição ainda. Tire a primeira foto na aba Descrever."));
     return;
   }
 
@@ -323,7 +298,11 @@ async function renderizarHistorico() {
         </span>`;
       item.querySelector(".item__texto").textContent = registro.descricao;
       item.querySelector(".item__meta").textContent =
-        `${dataLegivel(registro.criadoEm)} · ${MODOS[registro.modo]?.rotulo || registro.modo}`;
+        `${dataLegivel(registro.criadoEm)} · ${MODOS[registro.modo]?.rotulo || registro.modo} · ${registro.modelo}`;
+      item.setAttribute(
+        "aria-label",
+        `Ouvir descrição de ${dataLegivel(registro.criadoEm)}: ${registro.descricao}`
+      );
       item.addEventListener("click", () => {
         estado.atual = registro;
         ouvir(registro.descricao);
@@ -340,10 +319,9 @@ function criarVazio(mensagem) {
   return caixa;
 }
 
-// BANCO DE IMAGENS
+// ===================================================== BANCO DE IMAGENS
 function montarFiltrosBanco() {
   const alvo = $("#filtros-banco");
-  if (!alvo) return;
   const todos = criarChip("Todas", "");
   alvo.replaceChildren(todos, ...CATEGORIAS.map(([id, rotulo]) => criarChip(rotulo, id)));
   marcarFiltro();
@@ -374,7 +352,6 @@ function marcarFiltro() {
 
 async function renderizarBanco() {
   const galeria = $("#galeria-banco");
-  if (!galeria) return;
   galeria.setAttribute("aria-busy", "false");
 
   let itens = [];
@@ -395,7 +372,7 @@ async function renderizarBanco() {
           url: i.miniatura,
         }));
   } catch (erro) {
-    galeria.replaceChildren(criarVazio(`Não foi possível carregar o banco.`));
+    galeria.replaceChildren(criarVazio(`Não foi possível carregar o banco: ${erro.message}`));
     return;
   }
 
@@ -404,11 +381,14 @@ async function renderizarBanco() {
     : (await bd.banco.listar()).length;
 
   const percentual = Math.min(100, Math.round((total / 200) * 100));
-  if ($("#progresso-preenchida")) $("#progresso-preenchida").style.width = `${percentual}%`;
-  if ($("#progresso-texto")) $("#progresso-texto").textContent = `${total} de 200 a 300 imagens.`;
+  $("#progresso-preenchida").style.width = `${percentual}%`;
+  $("#progresso-texto").textContent =
+    `${total} de 200 a 300 imagens da Meta 1 (${percentual}% da meta mínima).`;
 
   if (!itens.length) {
-    galeria.replaceChildren(criarVazio("Nenhuma imagem nesta categoria."));
+    galeria.replaceChildren(
+      criarVazio("Nenhuma imagem nesta categoria. Use “Guardar no banco” depois de descrever uma foto.")
+    );
     return;
   }
 
@@ -427,20 +407,24 @@ async function renderizarBanco() {
   );
 }
 
+// ================================================== DIALOGO: GUARDAR NO BANCO
 function montarCategorias() {
   const seletor = $("#guardar-categoria");
-  if (seletor) seletor.replaceChildren(...CATEGORIAS.map(([id, rotulo]) => new Option(rotulo, id)));
+  seletor.replaceChildren(...CATEGORIAS.map(([id, rotulo]) => new Option(rotulo, id)));
 }
 
 async function guardarNoBanco(valor) {
   if (valor !== "salvar" || !estado.atual) return;
-  const categoria = $("#guardar-categoria")?.value || "outros";
-  const legenda = $("#guardar-legenda")?.value.trim() || "";
-  const usarDescricao = $("#guardar-usar-descricao")?.checked ?? true;
+  const categoria = $("#guardar-categoria").value;
+  const legenda = $("#guardar-legenda").value.trim();
+  const usarDescricao = $("#guardar-usar-descricao").checked;
 
   try {
     if (estado.temServidor) {
-      await servidor.enviarParaBanco(estado.atual.blob, categoria, legenda, usarDescricao ? estado.atual.descricao : "");
+      await servidor.enviarParaBanco(
+        estado.atual.blob, categoria, legenda,
+        usarDescricao ? estado.atual.descricao : ""
+      );
     } else {
       await bd.banco.salvar({
         id: estado.atual.id,
@@ -454,17 +438,17 @@ async function guardarNoBanco(valor) {
         miniatura: estado.atual.miniatura,
       });
     }
-    anunciar("Imagem guardada no banco.");
-    if ($("#guardar-legenda")) $("#guardar-legenda").value = "";
+    anunciar(`Imagem guardada no banco, categoria ${rotuloCategoria(categoria)}.`);
+    $("#guardar-legenda").value = "";
     renderizarBanco();
   } catch (erro) {
     mostrarErro(`Não foi possível guardar: ${erro.message}`);
   }
 }
 
+// ====================================================== DIALOGO: AVALIACAO
 function montarCriterios() {
   const alvo = $("#criterios");
-  if (!alvo) return;
   alvo.replaceChildren(
     ...CRITERIOS.map(([chave, rotulo]) => {
       const bloco = document.createElement("fieldset");
@@ -489,6 +473,7 @@ function montarCriterios() {
         const texto = document.createElement("span");
         texto.textContent = String(nota);
         rotuloNota.append(entrada, texto);
+        rotuloNota.setAttribute("aria-label", `${rotulo} nota ${nota}`);
         notas.appendChild(rotuloNota);
       }
       bloco.append(legenda, notas);
@@ -500,7 +485,10 @@ function montarCriterios() {
 async function enviarAvaliacao(valor) {
   if (valor !== "enviar" || !estado.atual) return;
   const notas = Object.fromEntries(
-    CRITERIOS.map(([chave]) => [chave, Number($(`#criterios input[name="${chave}"]:checked`)?.value || 4)])
+    CRITERIOS.map(([chave]) => [
+      chave,
+      Number($(`#criterios input[name="${chave}"]:checked`)?.value || 4),
+    ])
   );
 
   const registro = {
@@ -510,28 +498,33 @@ async function enviarAvaliacao(valor) {
     modo: estado.atual.modo,
     modelo: estado.atual.modelo,
     ...notas,
-    comentario: $("#avaliar-comentario")?.value.trim() || null,
-    participante_com_deficiencia_visual: $("#avaliar-pcd")?.checked || false,
-    consentimento: $("#avaliar-consentimento")?.checked ?? true,
+    comentario: $("#avaliar-comentario").value.trim() || null,
+    participante_com_deficiencia_visual: $("#avaliar-pcd").checked,
+    consentimento: $("#avaliar-consentimento").checked,
     registradoEm: bd.agora(),
   };
 
   await bd.avaliacoes.salvar(registro);
-  if (estado.temServidor) servidor.enviarAvaliacao(registro).catch(() => {});
-  if ($("#avaliar-comentario")) $("#avaliar-comentario").value = "";
-  anunciar("Avaliação registrada.");
+  if (estado.temServidor) {
+    servidor.enviarAvaliacao(registro).catch(() => {
+      /* ja esta salvo neste aparelho; segue sem interromper a pessoa */
+    });
+  }
+  $("#avaliar-comentario").value = "";
+  anunciar("Avaliação registrada. Obrigado por contribuir com a pesquisa.");
 }
 
+// ==================================================================== AJUSTES
 function preencherAjustes() {
-  if ($("#sel-velocidade")) $("#sel-velocidade").value = String(config.velocidade);
-  if ($("#opt-autoplay")) $("#opt-autoplay").checked = config.autoplay;
-  if ($("#opt-vibrar")) $("#opt-vibrar").checked = config.vibrar;
-  if ($("#opt-contraste")) $("#opt-contraste").checked = config.contraste;
-  if ($("#sel-fonte")) $("#sel-fonte").value = String(config.escalaFonte);
-  if ($("#campo-chave-ajustes")) $("#campo-chave-ajustes").value = config.apiKey;
-  if ($("#campo-endpoint")) $("#campo-endpoint").value = config.endpoint;
-  if ($("#campo-modelo")) $("#campo-modelo").value = config.modelo;
-  if ($("#campo-servidor")) $("#campo-servidor").value = config.servidor;
+  $("#sel-velocidade").value = String(config.velocidade);
+  $("#opt-autoplay").checked = config.autoplay;
+  $("#opt-vibrar").checked = config.vibrar;
+  $("#opt-contraste").checked = config.contraste;
+  $("#sel-fonte").value = String(config.escalaFonte);
+  $("#campo-chave-ajustes").value = config.apiKey;
+  $("#campo-endpoint").value = config.endpoint;
+  $("#campo-modelo").value = config.modelo;
+  $("#campo-servidor").value = config.servidor;
   marcarModo(config.modo);
 }
 
@@ -539,25 +532,29 @@ function marcarModo(modo) {
   $$(".modos .chip").forEach((chip) => {
     chip.setAttribute("aria-checked", String(chip.dataset.modo === modo));
   });
-  if ($("#bloco-pergunta")) $("#bloco-pergunta").hidden = modo !== "pergunta";
+  $("#bloco-pergunta").hidden = modo !== "pergunta";
 }
 
 function atualizarPainelSistema() {
   const lista = $("#sistema");
-  if (!lista) return;
-
   const linhas = estado.temServidor
     ? [
         ["Modo", "Servidor do projeto"],
         ["Endereço", baseServidor()],
         ["Modelo de visão", estado.saudeServidor.vlm_model],
+        ["Conexão do modelo", estado.saudeServidor.vlm_detalhe],
         ["Voz", `${estado.saudeServidor.tts_engine} · ${estado.saudeServidor.tts_voz}`],
+        ["Imagens no banco", String(estado.saudeServidor.imagens_no_banco)],
+        ["Descrições geradas", String(estado.saudeServidor.descricoes_geradas)],
+        ["Avaliações", String(estado.saudeServidor.avaliacoes)],
       ]
     : [
         ["Modo", "Direto (sem servidor)"],
         ["Provedor", config.endpoint],
         ["Modelo de visão", config.modelo],
         ["Chave da API", config.apiKey ? "configurada neste aparelho" : "não informada"],
+        ["Voz", "síntese do próprio aparelho"],
+        ["Dados da pesquisa", "guardados neste aparelho (exportáveis)"],
       ];
 
   lista.replaceChildren(
@@ -575,82 +572,68 @@ function atualizarPainelSistema() {
 
 async function salvarConfiguracoesIA() {
   salvar({
-    apiKey: $("#campo-chave-ajustes")?.value.trim() || "",
-    endpoint: $("#campo-endpoint")?.value.trim() || "https://api.groq.com/openai/v1",
-    modelo: $("#campo-modelo")?.value.trim() || "qwen/qwen3.6-27b",
-    servidor: $("#campo-servidor")?.value.trim() || "",
+    apiKey: $("#campo-chave-ajustes").value.trim(),
+    endpoint: $("#campo-endpoint").value.trim() || "https://api.groq.com/openai/v1",
+    modelo: $("#campo-modelo").value.trim() || "qwen/qwen3.6-27b",
+    servidor: $("#campo-servidor").value.trim(),
   });
   await detectarServidor();
   await carregarVozes();
   atualizarPainelSistema();
+  mostrarBlocoChave();
   renderizarBanco();
-  anunciar("Configurações salvas.");
+
+  if (!estado.temServidor && config.apiKey) {
+    const teste = await ia.verificar();
+    anunciar(teste.ok ? "Configurações salvas e chave funcionando." : `Atenção: ${teste.detalhe}`);
+    if (!teste.ok) mostrarErro(teste.detalhe);
+    else limparErro();
+  } else {
+    anunciar("Configurações salvas.");
+  }
 }
 
-// EVENTOS
+// ==================================================================== EVENTOS
 function ligarEventos() {
-  // Login
-  $("#form-login")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const usuario = $("#login-usuario")?.value.trim();
-    const senha = $("#login-senha")?.value.trim();
-
-    if (!usuario || !senha) {
-      mostrarErro("Preencha o usuário e a senha.");
-      return;
-    }
-
-    limparErro();
-    salvar({ usuarioLogado: true, nomeUsuario: usuario });
-    anunciar(`Login efetuado com sucesso.`);
-    verificarFluxoAcesso();
-  });
-
-  // Salvar Chave Setup
-  $("#btn-salvar-setup-chave")?.addEventListener("click", async () => {
-    const chave = $("#campo-chave-setup")?.value.trim();
-    if (!chave) {
-      mostrarErro("Insira uma chave da API válida.");
-      return;
-    }
-    salvar({ apiKey: chave });
-    if ($("#campo-chave-ajustes")) $("#campo-chave-ajustes").value = chave;
-    limparErro();
-    anunciar("Chave salva com sucesso.");
-    verificarFluxoAcesso();
-  });
-
-  // Abas
+  // navegacao entre as abas
   $$(".barra__item").forEach((botao) => {
     botao.addEventListener("click", () => {
       const destino = botao.dataset.ir;
-      irParaVista(destino);
+      $$(".vista").forEach((vista) => {
+        vista.dataset.ativa = String(vista.dataset.vista === destino);
+      });
+      $$(".barra__item").forEach((item) => {
+        if (item.dataset.ir === destino) item.setAttribute("aria-current", "page");
+        else item.removeAttribute("aria-current");
+      });
+      document.querySelector(`.vista[data-vista="${destino}"] h1`)?.focus?.();
       if (destino === "historico") renderizarHistorico();
       if (destino === "banco") renderizarBanco();
       if (destino === "ajustes") atualizarPainelSistema();
     });
   });
 
-  // Modos
+  // modos de descricao
   $$(".modos .chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       salvar({ modo: chip.dataset.modo });
       marcarModo(chip.dataset.modo);
-      if (chip.dataset.modo === "pergunta") $("#campo-pergunta")?.focus();
+      if (chip.dataset.modo === "pergunta") $("#campo-pergunta").focus();
+      anunciar(`Modo ${MODOS[chip.dataset.modo]?.rotulo || chip.dataset.modo} selecionado.`);
     });
   });
 
-  // Captura
-  $("#visor")?.addEventListener("click", capturar);
-  $("#btn-capturar")?.addEventListener("click", capturar);
-  $("#btn-galeria")?.addEventListener("click", () => { fala.destravar(); $("#arquivo")?.click(); });
-  $("#btn-trocar-camera")?.addEventListener("click", async () => {
+  // captura
+  $("#visor").addEventListener("click", capturar);
+  $("#btn-capturar").addEventListener("click", capturar);
+  $("#btn-galeria").addEventListener("click", () => { fala.destravar(); $("#arquivo").click(); });
+  $("#btn-trocar-camera").addEventListener("click", async () => {
     try { await camera.trocar($("#video")); }
     catch (erro) { mostrarErro(camera.traduzirErro(erro)); }
   });
 
   for (const id of ["#arquivo", "#arquivo-camera"]) {
-    $(id)?.addEventListener("change", async (evento) => {
+    $(id).addEventListener("change", async (evento) => {
       const arquivo = evento.target.files?.[0];
       evento.target.value = "";
       if (!arquivo) return;
@@ -664,73 +647,164 @@ function ligarEventos() {
     });
   }
 
-  // Áudio e Ações
-  $("#btn-ouvir")?.addEventListener("click", () => ouvir());
-  $("#btn-parar")?.addEventListener("click", () => fala.parar());
+  // resultado
+  $("#btn-ouvir").addEventListener("click", () => ouvir());
+  $("#btn-parar").addEventListener("click", () => fala.parar());
   fala.aoMudarEstado(alternarBotoesAudio);
 
-  $("#btn-copiar")?.addEventListener("click", async () => {
+  $("#btn-copiar").addEventListener("click", async () => {
     if (!estado.atual) return;
     try {
       await navigator.clipboard.writeText(estado.atual.descricao);
       anunciar("Descrição copiada.");
     } catch {
-      mostrarErro("O navegador não permitiu copiar.");
+      mostrarErro("O navegador não permitiu copiar. Selecione o texto manualmente.");
     }
   });
 
-  $("#btn-guardar")?.addEventListener("click", () => {
-    if (estado.atual) $("#dlg-guardar")?.showModal();
+  $("#btn-compartilhar").addEventListener("click", async () => {
+    if (!estado.atual) return;
+    const dados = {
+      title: "Olhar Acessível",
+      text: estado.atual.descricao,
+    };
+    try {
+      if (navigator.canShare?.({ files: [new File([estado.atual.blob], "foto.jpg", { type: "image/jpeg" })] })) {
+        await navigator.share({
+          ...dados,
+          files: [new File([estado.atual.blob], "foto.jpg", { type: "image/jpeg" })],
+        });
+      } else if (navigator.share) {
+        await navigator.share(dados);
+      } else {
+        await navigator.clipboard.writeText(estado.atual.descricao);
+        anunciar("Compartilhamento indisponível. A descrição foi copiada.");
+      }
+    } catch {
+      /* a pessoa cancelou o compartilhamento */
+    }
   });
-  $("#dlg-guardar")?.addEventListener("close", (evento) => guardarNoBanco(evento.target.returnValue));
 
-  $("#btn-avaliar")?.addEventListener("click", () => {
-    if (estado.atual) $("#dlg-avaliar")?.showModal();
+  $("#btn-guardar").addEventListener("click", () => {
+    if (!estado.atual) return;
+    $("#dlg-guardar").showModal();
   });
-  $("#dlg-avaliar")?.addEventListener("close", (evento) => enviarAvaliacao(evento.target.returnValue));
+  $("#dlg-guardar").addEventListener("close", (evento) =>
+    guardarNoBanco(evento.target.returnValue)
+  );
 
-  $("#btn-nova")?.addEventListener("click", async () => {
+  $("#btn-avaliar").addEventListener("click", () => {
+    if (!estado.atual) return;
+    $("#dlg-avaliar").showModal();
+  });
+  $("#dlg-avaliar").addEventListener("close", (evento) =>
+    enviarAvaliacao(evento.target.returnValue)
+  );
+
+  $("#btn-nova").addEventListener("click", async () => {
     fala.parar();
-    if ($("#resultado")) $("#resultado").hidden = true;
-    if ($("#foto-previa")) $("#foto-previa").hidden = true;
+    $("#resultado").hidden = true;
+    $("#foto-previa").hidden = true;
     limparErro();
     await ligarCamera();
-    $("#btn-capturar")?.focus();
+    $("#btn-capturar").focus();
+    anunciar("Pronto para nova foto.");
   });
 
-  // Ajustes
-  $("#btn-tema")?.addEventListener("click", () => {
+  // pergunta por voz
+  $("#btn-ditar").addEventListener("click", async () => {
+    const botao = $("#btn-ditar");
+    botao.dataset.gravando = "true";
+    anunciar("Pode falar a pergunta.");
+    try {
+      const texto = await fala.ouvirPergunta();
+      if (texto) {
+        $("#campo-pergunta").value = texto;
+        anunciar(`Pergunta registrada: ${texto}`);
+      }
+    } catch (erro) {
+      mostrarErro(erro.message);
+    } finally {
+      botao.dataset.gravando = "false";
+    }
+  });
+
+  // primeiro acesso: chave da API
+  $("#btn-salvar-chave").addEventListener("click", async () => {
+    const chave = $("#campo-chave").value.trim();
+    if (!chave) { mostrarErro("Cole a chave da API para continuar."); return; }
+    salvar({ apiKey: chave });
+    $("#campo-chave-ajustes").value = chave;
+    const teste = await ia.verificar();
+    if (!teste.ok) { mostrarErro(teste.detalhe); return; }
+    limparErro();
+    mostrarBlocoChave();
+    await detectarServidor();
+    atualizarPainelSistema();
+    anunciar("Chave salva. Já pode fotografar.");
+    $("#btn-capturar").focus();
+  });
+
+  // ajustes
+  $("#btn-tema").addEventListener("click", () => {
     const atual = document.documentElement.dataset.tema;
     salvar({ tema: atual === "escuro" ? "claro" : "escuro" });
     aplicarAparencia();
   });
-  $("#sel-voz")?.addEventListener("change", (e) => salvar({ voz: e.target.value }));
-  $("#sel-velocidade")?.addEventListener("change", (e) => salvar({ velocidade: Number(e.target.value) }));
-  $("#opt-autoplay")?.addEventListener("change", (e) => salvar({ autoplay: e.target.checked }));
-  $("#opt-vibrar")?.addEventListener("change", (e) => salvar({ vibrar: e.target.checked }));
-  $("#opt-contraste")?.addEventListener("change", (e) => {
+  $("#sel-voz").addEventListener("change", (e) => salvar({ voz: e.target.value }));
+  $("#sel-velocidade").addEventListener("change", (e) =>
+    salvar({ velocidade: Number(e.target.value) })
+  );
+  $("#opt-autoplay").addEventListener("change", (e) => salvar({ autoplay: e.target.checked }));
+  $("#opt-vibrar").addEventListener("change", (e) => salvar({ vibrar: e.target.checked }));
+  $("#opt-contraste").addEventListener("change", (e) => {
     salvar({ contraste: e.target.checked });
     aplicarAparencia();
   });
-  $("#sel-fonte")?.addEventListener("change", (e) => {
+  $("#sel-fonte").addEventListener("change", (e) => {
     salvar({ escalaFonte: Number(e.target.value) });
     aplicarAparencia();
   });
-  $("#btn-salvar-ia")?.addEventListener("click", salvarConfiguracoesIA);
+  $("#btn-salvar-ia").addEventListener("click", salvarConfiguracoesIA);
+  $("#btn-atualizar-saude").addEventListener("click", async () => {
+    await detectarServidor();
+    atualizarPainelSistema();
+    anunciar("Estado do sistema atualizado.");
+  });
 
-  // Pesquisa
-  $("#btn-exportar-json")?.addEventListener("click", async () => {
+  // dados da pesquisa
+  $("#btn-exportar-json").addEventListener("click", async () => {
     const dados = await bd.exportarJson();
     bd.baixar("olhar-acessivel-dados.json", JSON.stringify(dados, null, 2));
+    anunciar("Arquivo JSON gerado.");
   });
-  $("#btn-exportar-csv")?.addEventListener("click", async () => {
+  $("#btn-exportar-csv").addEventListener("click", async () => {
     const arquivos = await bd.exportarCsv();
     for (const [nome, conteudo] of Object.entries(arquivos)) {
       if (conteudo) bd.baixar(`olhar-acessivel-${nome}`, conteudo, "text/csv;charset=utf-8");
     }
+    anunciar("Arquivos CSV gerados.");
+  });
+  $("#btn-limpar-historico").addEventListener("click", async () => {
+    if (!confirm("Apagar todas as descrições guardadas neste aparelho?")) return;
+    await bd.descricoes.limpar();
+    renderizarHistorico();
+    anunciar("Histórico apagado.");
   });
 
+  // atalhos de teclado (uso em computador)
+  document.addEventListener("keydown", (evento) => {
+    if (evento.target.matches("input, textarea, select")) return;
+    if (evento.key === " " || evento.key === "Enter") {
+      if (document.activeElement === document.body) { evento.preventDefault(); capturar(); }
+    }
+    if (evento.key === "Escape") fala.parar();
+  });
+
+  // o primeiro toque em qualquer lugar libera o audio do navegador
   document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarAparencia);
+  window.addEventListener("pagehide", () => camera.desligar());
 }
 
 iniciar();
