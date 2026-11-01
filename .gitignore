@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Configuracao local (contem a chave da API)
+backend/.env
+
+# Dados gerados em execucao
+backend/data/imagens/**
+backend/data/audio/**
+backend/data/logs/**
+!backend/data/imagens/.gitkeep
+!backend/data/audio/.gitkeep
+!backend/data/logs/.gitkeep
+
+# Documentos do projeto (nao versionar arquivos pesados)
+*.pdf
+
+# Sistema
+.DS_Store
+Thumbs.db
