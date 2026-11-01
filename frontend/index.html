@@ -44,26 +44,52 @@
 
     <main class="conteudo" id="conteudo">
 
-      <!-- ============ VISTA: CAPTURAR E DESCREVER ============ -->
-      <section class="vista" data-vista="capturar" data-ativa="true"
-               aria-labelledby="titulo-capturar">
-        <h1 class="sr-only" id="titulo-capturar">Fotografar e descrever</h1>
+      <!-- ============ VISTA 1: LOGIN ============ -->
+      <section class="vista" data-vista="login" data-ativa="true" aria-labelledby="titulo-login">
+        <h1 class="sr-only" id="titulo-login">Acesso ao aplicativo</h1>
+        
+        <div class="cartao cartao--destaque">
+          <h2 class="cartao__titulo">Entrar no Olhar Acessível</h2>
+          
+          <p class="aviso-ajuda" role="note" style="background: var(--surface-2); border-left: 5px solid var(--acento); padding: 12px; border-radius: var(--raio-p); margin-bottom: 16px; font-size: 0.95rem;">
+            ♿ <strong>Aviso de Acessibilidade:</strong> Se você possui deficiência visual e precisa de suporte para digitar seu usuário e senha, peça ajuda a um monitor ou tutor para realizar este primeiro acesso.
+          </p>
 
-        <!-- primeiro uso: pedir a chave gratuita (só no modo direto) -->
-        <div class="cartao cartao--destaque" id="bloco-chave" hidden>
+          <form id="form-login" onsubmit="return false;">
+            <label class="rotulo" for="login-usuario">Usuário ou E-mail</label>
+            <input class="campo" id="login-usuario" type="text" autocomplete="username" required placeholder="Digite seu usuário">
+
+            <label class="rotulo" for="login-senha" style="margin-top: 12px;">Senha</label>
+            <input class="campo" id="login-senha" type="password" autocomplete="current-password" required placeholder="Digite sua senha">
+
+            <button class="botao botao--gigante" id="btn-entrar" type="submit" style="margin-top: 18px;">
+              Entrar
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============ VISTA 2: CONFIGURAÇÃO DA CHAVE (PRIMEIRO ACESSO) ============ -->
+      <section class="vista" data-vista="setup-chave" aria-labelledby="titulo-setup">
+        <h1 class="sr-only" id="titulo-setup">Configuração inicial da chave API</h1>
+
+        <div class="cartao cartao--destaque">
           <h2 class="cartao__titulo">Primeiro acesso: informe a chave da IA</h2>
           <p class="cartao__texto">
-            Este aplicativo usa um modelo de visão gratuito. Crie uma chave em
-            <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>
-            e cole abaixo. Ela fica guardada só neste aparelho.
+            Para usar o aplicativo, informe a chave da API (Groq). Ela ficará salva de forma segura apenas neste dispositivo[cite: 2, 16].
           </p>
-          <label class="rotulo" for="campo-chave">Chave da API</label>
-          <input class="campo" id="campo-chave" type="password" autocomplete="off"
-                 spellcheck="false" placeholder="gsk_…">
-          <button class="botao botao--primario" id="btn-salvar-chave" type="button">
+          <label class="rotulo" for="campo-chave-setup">Chave da API</label>
+          <input class="campo" id="campo-chave-setup" type="password" autocomplete="off"
+                spellcheck="false" placeholder="gsk_…">
+          <button class="botao botao--gigante" id="btn-salvar-setup-chave" type="button" style="margin-top: 18px;">
             Salvar chave e começar
           </button>
         </div>
+      </section>
+
+      <!-- ============ VISTA 3: CAPTURAR E DESCREVER ============ -->
+      <section class="vista" data-vista="capturar" aria-labelledby="titulo-capturar">
+        <h1 class="sr-only" id="titulo-capturar">Fotografar e descrever</h1>
 
         <!-- modos de descrição -->
         <div class="modos" role="radiogroup" aria-label="Tipo de descrição">
@@ -84,7 +110,7 @@
           <label class="rotulo" for="campo-pergunta">O que você quer saber sobre a imagem?</label>
           <div class="pergunta__linha">
             <input class="campo" id="campo-pergunta" type="text" enterkeyhint="done"
-                   placeholder="Ex.: qual é o número da sala?" autocomplete="off">
+                  placeholder="Ex.: qual é o número da sala?" autocomplete="off">
             <button class="btn-icone btn-icone--forte" id="btn-ditar" type="button"
                     aria-label="Ditar a pergunta por voz">🎤</button>
           </div>
@@ -121,9 +147,9 @@
           </button>
         </div>
         <input class="sr-only" id="arquivo" type="file" accept="image/*"
-               aria-label="Escolher uma imagem do aparelho">
+              aria-label="Escolher uma imagem do aparelho">
         <input class="sr-only" id="arquivo-camera" type="file" accept="image/*"
-               capture="environment" aria-label="Tirar foto com a câmera">
+              capture="environment" aria-label="Tirar foto com a câmera">
 
         <!-- ============ RESULTADO ============ -->
         <article class="resultado" id="resultado" hidden aria-labelledby="resultado-titulo">
@@ -177,7 +203,7 @@
       <section class="vista" data-vista="banco" aria-labelledby="titulo-banco">
         <h1 class="titulo-vista" id="titulo-banco">Banco de imagens</h1>
         <p class="dica">
-          Acervo do ambiente escolar organizado por categoria (Meta 1 do projeto).
+          Acervo do ambiente escolar organizado por categoria (Meta 1 do projeto)[cite: 5, 8].
         </p>
 
         <div class="progresso">
@@ -237,29 +263,29 @@
 
           <label class="rotulo" for="campo-chave-ajustes">Chave da API (fica só neste aparelho)</label>
           <input class="campo" id="campo-chave-ajustes" type="password" autocomplete="off"
-                 spellcheck="false" placeholder="gsk_…">
+                spellcheck="false" placeholder="gsk_…">
 
           <label class="rotulo" for="campo-endpoint">Endereço da API de visão</label>
           <input class="campo" id="campo-endpoint" type="url" inputmode="url"
-                 autocomplete="off" spellcheck="false"
-                 placeholder="https://api.groq.com/openai/v1">
+                autocomplete="off" spellcheck="false"
+                placeholder="https://api.groq.com/openai/v1">
 
           <label class="rotulo" for="campo-modelo">Modelo de visão e linguagem</label>
           <input class="campo" id="campo-modelo" type="text" autocomplete="off"
-                 spellcheck="false" placeholder="qwen/qwen3.6-27b">
+                spellcheck="false" placeholder="qwen/qwen3.6-27b">
           <p class="dica dica--campo">
             Trocar o modelo aqui é o que permite a comparação prevista na Meta 2
-            do projeto — a mesma foto, modelos diferentes.
+            do projeto — a mesma foto, modelos diferentes[cite: 5, 8].
           </p>
 
           <label class="rotulo" for="campo-servidor">Servidor do projeto (opcional)</label>
           <input class="campo" id="campo-servidor" type="url" inputmode="url"
-                 autocomplete="off" spellcheck="false"
-                 placeholder="deixe em branco para funcionar sem servidor">
+                autocomplete="off" spellcheck="false"
+                placeholder="deixe em branco para funcionar sem servidor">
           <p class="dica dica--campo">
             Com o backend do projeto no ar, o aplicativo passa a usar as vozes
             neurais em português, o banco de imagens central e o registro das
-            avaliações. Sem ele, tudo funciona neste aparelho.
+            avaliações. Sem ele, tudo funciona neste aparelho[cite: 5].
           </p>
           <button class="botao botao--suave" id="btn-salvar-ia" type="button">
             Salvar configurações
@@ -270,7 +296,7 @@
           <legend>Dados da pesquisa</legend>
           <p class="dica dica--campo">
             Exporte o que foi coletado neste aparelho para analisar no relatório
-            (Etapa 4) — descrições, avaliações e legendas do banco.
+            (Etapa 4) — descrições, avaliações e legendas do banco[cite: 5, 8].
           </p>
           <div class="acoes-linha">
             <button class="botao botao--suave" id="btn-exportar-json" type="button">
@@ -291,16 +317,16 @@
         </div>
 
         <p class="creditos">
-          PIBIC Jr 2026 · Edital 13/2026 PRPI/REITORIA-IFCE<br>
-          Coordenação: Jessyca Almeida Bessa · IFCE Campus Maranguape<br>
-          LEIAH — Laboratório de Estudos em Inteligência Artificial e Humanidades
+          PIBIC Jr 2026 · Edital 13/2026 PRPI/REITORIA-IFCE[cite: 5]<br>
+          Coordenação: Jessyca Almeida Bessa · IFCE Campus Maranguape[cite: 5]<br>
+          LEIAH — Laboratório de Estudos em Inteligência Artificial e Humanidades[cite: 2, 8]
         </p>
       </section>
     </main>
 
     <!-- ===================== BARRA INFERIOR ===================== -->
     <nav class="barra" aria-label="Seções do aplicativo">
-      <button class="barra__item" type="button" data-ir="capturar" aria-current="page">
+      <button class="barra__item" type="button" data-ir="capturar">
         <span class="barra__icone" aria-hidden="true">📷</span>
         <span class="barra__rotulo">Descrever</span>
       </button>
@@ -329,7 +355,7 @@
 
       <label class="rotulo" for="guardar-legenda">Legenda (opcional)</label>
       <input class="campo" id="guardar-legenda" type="text"
-             placeholder="Ex.: laboratório de informática, bancada da janela">
+            placeholder="Ex.: laboratório de informática, bancada da janela">
 
       <label class="opcao">
         <input type="checkbox" id="guardar-usar-descricao" checked>
@@ -349,7 +375,7 @@
       <h2 id="dlg-avaliar-titulo">Avaliar a descrição</h2>
       <p class="dica">
         Dê uma nota de 1 (ruim) a 5 (excelente) para cada critério. As respostas
-        alimentam a avaliação qualitativa da pesquisa.
+        alimentam a avaliação qualitativa da pesquisa[cite: 8, 37].
       </p>
 
       <div id="criterios"></div>

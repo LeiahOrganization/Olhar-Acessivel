@@ -1,11 +1,4 @@
-// Olhar Acessivel — controlador da interface.
-//
-// O aplicativo tem dois modos de operacao, decididos sozinho ao abrir:
-//   MODO DIRETO   (padrao no GitHub Pages): o navegador fala com o modelo de
-//                 visao e usa a voz do proprio aparelho. Nao precisa servidor.
-//   MODO SERVIDOR (quando o backend do projeto responde): audiodescricao e voz
-//                 neural vem do servidor, e o banco de imagens e as avaliacoes
-//                 ficam centralizados para a pesquisa.
+// Olhar Acessível — controlador principal
 
 import { config, salvar, baseServidor } from "./config.js";
 import { MODOS } from "./prompts.js";
@@ -23,7 +16,7 @@ import {
 const estado = {
   temServidor: false,
   saudeServidor: null,
-  atual: null,          // ultima descricao gerada
+  atual: null,
   ocupado: false,
   filtroBanco: "",
 };
@@ -36,7 +29,43 @@ const CRITERIOS = [
   ["neutralidade", "Neutralidade — sem opinião ou exagero?"],
 ];
 
-// ==================================================================== INICIO
+// NAVEGAÇÃO
+function irParaVista(destino) {
+  $$(".vista").forEach((vista) => {
+    vista.dataset.ativa = String(vista.dataset.vista === destino);
+  });
+
+  $$(".barra__item").forEach((item) => {
+    if (item.dataset.ir === destino) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  });
+
+  const barra = $(".barra");
+  if (barra) {
+    barra.hidden = (destino === "login" || destino === "setup-chave");
+  }
+
+  document.querySelector(`.vista[data-vista="${destino}"] h1`)?.focus?.();
+}
+
+function verificarFluxoAcesso() {
+  if (!config.usuarioLogado) {
+    irParaVista("login");
+    anunciar("Tela de login.");
+    return;
+  }
+
+  if (!config.apiKey && !estado.temServidor) {
+    irParaVista("setup-chave");
+    anunciar("Informe a chave da API.");
+    return;
+  }
+
+  irParaVista("capturar");
+  ligarCamera();
+}
+
+// INÍCIO
 async function iniciar() {
   aplicarAparencia();
   preencherAjustes();
@@ -46,26 +75,26 @@ async function iniciar() {
   ligarEventos();
   registrarServiceWorker();
 
-  const camerinha = ligarCamera();          // sobe em paralelo: abre mais rapido
   await detectarServidor();
   await carregarVozes();
   atualizarPainelSistema();
-  mostrarBlocoChave();
 
-  await Promise.all([camerinha, renderizarHistorico(), renderizarBanco()]);
+  verificarFluxoAcesso();
+
+  await Promise.all([renderizarHistorico(), renderizarBanco()]);
 }
 
 function registrarServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (location.protocol === "file:") return;
-  navigator.serviceWorker.register("sw.js").catch(() => {
-    /* sem cache offline; o aplicativo continua funcionando online */
-  });
+  navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
 async function detectarServidor() {
   const status = $("#status");
   const texto = $("#status-texto");
+  if (!status || !texto) return;
+
   status.dataset.estado = "carregando";
   texto.textContent = "Verificando…";
 
@@ -86,18 +115,14 @@ async function detectarServidor() {
   }
 }
 
-function mostrarBlocoChave() {
-  $("#bloco-chave").hidden = estado.temServidor || Boolean(config.apiKey);
-}
-
-// ==================================================================== CAMERA
+// CÂMERA
 async function ligarCamera() {
   const video = $("#video");
-  // se ja existe uma foto na tela, a camera nao pode voltar por cima dela
-  const mostrandoFoto = () => !$("#foto-previa").hidden;
+  if (!video) return;
+  const mostrandoFoto = () => !$("#foto-previa")?.hidden;
 
   if (!camera.suportaStream()) {
-    if (!mostrandoFoto()) $("#visor-vazio").hidden = false;
+    if (!mostrandoFoto() && $("#visor-vazio")) $("#visor-vazio").hidden = false;
     video.hidden = true;
     return;
   }
@@ -105,48 +130,48 @@ async function ligarCamera() {
     await camera.ligar(video);
     if (mostrandoFoto()) return;
     video.hidden = false;
-    $("#visor-vazio").hidden = true;
+    if ($("#visor-vazio")) $("#visor-vazio").hidden = true;
   } catch (erro) {
     video.hidden = true;
-    $("#visor-vazio .visor__texto").textContent =
-      "Toque aqui para abrir a câmera do aparelho";
-    if (!mostrandoFoto()) $("#visor-vazio").hidden = false;
-    console.warn(camera.traduzirErro(erro));
+    if ($("#visor-vazio .visor__texto")) {
+      $("#visor-vazio .visor__texto").textContent = "Toque aqui para abrir a câmera do aparelho";
+    }
+    if (!mostrandoFoto() && $("#visor-vazio")) $("#visor-vazio").hidden = false;
   }
 }
 
-// ================================================================== CAPTURA
+// CAPTURA
 async function capturar() {
   if (estado.ocupado) return;
   fala.destravar();
   limparErro();
 
   if (!estado.temServidor && !config.apiKey) {
-    mostrarErro("Informe a chave da API para começar. O campo está no topo desta tela.");
-    $("#campo-chave").focus();
+    mostrarErro("Informe a chave da API para começar.");
+    verificarFluxoAcesso();
     return;
   }
 
   const video = $("#video");
-  if (camera.ativa() && video.videoWidth) {
+  if (camera.ativa() && video?.videoWidth) {
     vibrar(35);
     const foto = await imagem.doVideo(video);
     await descrever(foto);
   } else {
-    // sem stream ao vivo: abre a camera nativa do sistema
-    $("#arquivo-camera").click();
+    $("#arquivo-camera")?.click();
   }
 }
 
 async function descrever(foto) {
   estado.ocupado = true;
   const carregando = $("#visor-carregando");
-  carregando.hidden = false;
+  if (carregando) carregando.hidden = false;
+
   $("#foto-previa").src = foto.dataUrl;
   $("#foto-previa").hidden = false;
-  $("#video").hidden = true;
-  $("#visor-vazio").hidden = true;
-  $("#btn-capturar").disabled = true;
+  if ($("#video")) $("#video").hidden = true;
+  if ($("#visor-vazio")) $("#visor-vazio").hidden = true;
+  if ($("#btn-capturar")) $("#btn-capturar").disabled = true;
   anunciar("Foto tirada. Gerando a descrição.");
 
   const inicio = performance.now();
@@ -201,17 +226,18 @@ async function descrever(foto) {
 
     renderizarHistorico();
   } catch (erro) {
-    $("#resultado").hidden = true;
+    if ($("#resultado")) $("#resultado").hidden = true;
     mostrarErro(erro.message || "Não foi possível gerar a descrição.");
   } finally {
-    carregando.hidden = true;
-    $("#btn-capturar").disabled = false;
+    if (carregando) carregando.hidden = true;
+    if ($("#btn-capturar")) $("#btn-capturar").disabled = false;
     estado.ocupado = false;
   }
 }
 
 function prepararResultadoEmBranco(modo, pergunta) {
   const alvo = $("#resultado");
+  if (!alvo) return;
   alvo.hidden = false;
   $("#resultado-texto").textContent = "";
   const meta = $("#resultado-meta");
@@ -221,6 +247,7 @@ function prepararResultadoEmBranco(modo, pergunta) {
 
 function mostrarResultado(registro) {
   const alvo = $("#resultado");
+  if (!alvo) return;
   alvo.hidden = false;
   $("#resultado-texto").textContent = registro.descricao;
 
@@ -236,18 +263,16 @@ function mostrarResultado(registro) {
   $("#resultado-texto").focus();
 }
 
-// ==================================================================== AUDIO
+// ÁUDIO
 async function ouvir(texto, { automatico = false } = {}) {
   const conteudo = texto || estado.atual?.descricao;
   if (!conteudo) return;
   try {
     await fala.falar(conteudo, { temServidor: estado.temServidor });
   } catch (erro) {
-    // navegadores moveis so tocam som depois de um toque da pessoa usuaria;
-    // quando a fala automatica e barrada, basta convidar ao toque
     if (automatico) {
-      anunciar("Descrição pronta. Toque em ouvir descrição para escutar.");
-      $("#btn-ouvir").focus();
+      anunciar("Descrição pronta. Toque em ouvir descrição.");
+      $("#btn-ouvir")?.focus();
       return;
     }
     mostrarErro(erro.message || "Não consegui falar a descrição.");
@@ -255,33 +280,33 @@ async function ouvir(texto, { automatico = false } = {}) {
 }
 
 function alternarBotoesAudio(tocando) {
-  $("#btn-ouvir").hidden = tocando;
-  $("#btn-parar").hidden = !tocando;
+  if ($("#btn-ouvir")) $("#btn-ouvir").hidden = tocando;
+  if ($("#btn-parar")) $("#btn-parar").hidden = !tocando;
 }
 
 async function carregarVozes() {
   const seletor = $("#sel-voz");
+  if (!seletor) return;
   const preencher = async () => {
     const vozes = await fala.vozesDisponiveis(estado.temServidor);
     seletor.replaceChildren();
-    const automatica = new Option("Automática (melhor voz disponível)", "");
-    seletor.appendChild(automatica);
+    seletor.appendChild(new Option("Automática (melhor voz)", ""));
     for (const voz of vozes) seletor.appendChild(new Option(voz.rotulo, voz.id));
     seletor.value = config.voz || "";
   };
   await preencher();
-  // no Chrome a lista de vozes chega depois do primeiro carregamento
   if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = preencher;
 }
 
-// ================================================================ HISTORICO
+// HISTÓRICO
 async function renderizarHistorico() {
   const lista = $("#lista-historico");
+  if (!lista) return;
   const registros = await bd.descricoes.listar(40);
   lista.setAttribute("aria-busy", "false");
 
   if (!registros.length) {
-    lista.replaceChildren(criarVazio("Nenhuma descrição ainda. Tire a primeira foto na aba Descrever."));
+    lista.replaceChildren(criarVazio("Nenhuma descrição ainda."));
     return;
   }
 
@@ -298,11 +323,7 @@ async function renderizarHistorico() {
         </span>`;
       item.querySelector(".item__texto").textContent = registro.descricao;
       item.querySelector(".item__meta").textContent =
-        `${dataLegivel(registro.criadoEm)} · ${MODOS[registro.modo]?.rotulo || registro.modo} · ${registro.modelo}`;
-      item.setAttribute(
-        "aria-label",
-        `Ouvir descrição de ${dataLegivel(registro.criadoEm)}: ${registro.descricao}`
-      );
+        `${dataLegivel(registro.criadoEm)} · ${MODOS[registro.modo]?.rotulo || registro.modo}`;
       item.addEventListener("click", () => {
         estado.atual = registro;
         ouvir(registro.descricao);
@@ -319,9 +340,10 @@ function criarVazio(mensagem) {
   return caixa;
 }
 
-// ===================================================== BANCO DE IMAGENS
+// BANCO DE IMAGENS
 function montarFiltrosBanco() {
   const alvo = $("#filtros-banco");
+  if (!alvo) return;
   const todos = criarChip("Todas", "");
   alvo.replaceChildren(todos, ...CATEGORIAS.map(([id, rotulo]) => criarChip(rotulo, id)));
   marcarFiltro();
@@ -352,6 +374,7 @@ function marcarFiltro() {
 
 async function renderizarBanco() {
   const galeria = $("#galeria-banco");
+  if (!galeria) return;
   galeria.setAttribute("aria-busy", "false");
 
   let itens = [];
@@ -372,7 +395,7 @@ async function renderizarBanco() {
           url: i.miniatura,
         }));
   } catch (erro) {
-    galeria.replaceChildren(criarVazio(`Não foi possível carregar o banco: ${erro.message}`));
+    galeria.replaceChildren(criarVazio(`Não foi possível carregar o banco.`));
     return;
   }
 
@@ -381,14 +404,11 @@ async function renderizarBanco() {
     : (await bd.banco.listar()).length;
 
   const percentual = Math.min(100, Math.round((total / 200) * 100));
-  $("#progresso-preenchida").style.width = `${percentual}%`;
-  $("#progresso-texto").textContent =
-    `${total} de 200 a 300 imagens da Meta 1 (${percentual}% da meta mínima).`;
+  if ($("#progresso-preenchida")) $("#progresso-preenchida").style.width = `${percentual}%`;
+  if ($("#progresso-texto")) $("#progresso-texto").textContent = `${total} de 200 a 300 imagens.`;
 
   if (!itens.length) {
-    galeria.replaceChildren(
-      criarVazio("Nenhuma imagem nesta categoria. Use “Guardar no banco” depois de descrever uma foto.")
-    );
+    galeria.replaceChildren(criarVazio("Nenhuma imagem nesta categoria."));
     return;
   }
 
@@ -407,24 +427,20 @@ async function renderizarBanco() {
   );
 }
 
-// ================================================== DIALOGO: GUARDAR NO BANCO
 function montarCategorias() {
   const seletor = $("#guardar-categoria");
-  seletor.replaceChildren(...CATEGORIAS.map(([id, rotulo]) => new Option(rotulo, id)));
+  if (seletor) seletor.replaceChildren(...CATEGORIAS.map(([id, rotulo]) => new Option(rotulo, id)));
 }
 
 async function guardarNoBanco(valor) {
   if (valor !== "salvar" || !estado.atual) return;
-  const categoria = $("#guardar-categoria").value;
-  const legenda = $("#guardar-legenda").value.trim();
-  const usarDescricao = $("#guardar-usar-descricao").checked;
+  const categoria = $("#guardar-categoria")?.value || "outros";
+  const legenda = $("#guardar-legenda")?.value.trim() || "";
+  const usarDescricao = $("#guardar-usar-descricao")?.checked ?? true;
 
   try {
     if (estado.temServidor) {
-      await servidor.enviarParaBanco(
-        estado.atual.blob, categoria, legenda,
-        usarDescricao ? estado.atual.descricao : ""
-      );
+      await servidor.enviarParaBanco(estado.atual.blob, categoria, legenda, usarDescricao ? estado.atual.descricao : "");
     } else {
       await bd.banco.salvar({
         id: estado.atual.id,
@@ -438,17 +454,17 @@ async function guardarNoBanco(valor) {
         miniatura: estado.atual.miniatura,
       });
     }
-    anunciar(`Imagem guardada no banco, categoria ${rotuloCategoria(categoria)}.`);
-    $("#guardar-legenda").value = "";
+    anunciar("Imagem guardada no banco.");
+    if ($("#guardar-legenda")) $("#guardar-legenda").value = "";
     renderizarBanco();
   } catch (erro) {
     mostrarErro(`Não foi possível guardar: ${erro.message}`);
   }
 }
 
-// ====================================================== DIALOGO: AVALIACAO
 function montarCriterios() {
   const alvo = $("#criterios");
+  if (!alvo) return;
   alvo.replaceChildren(
     ...CRITERIOS.map(([chave, rotulo]) => {
       const bloco = document.createElement("fieldset");
@@ -473,7 +489,6 @@ function montarCriterios() {
         const texto = document.createElement("span");
         texto.textContent = String(nota);
         rotuloNota.append(entrada, texto);
-        rotuloNota.setAttribute("aria-label", `${rotulo} nota ${nota}`);
         notas.appendChild(rotuloNota);
       }
       bloco.append(legenda, notas);
@@ -485,10 +500,7 @@ function montarCriterios() {
 async function enviarAvaliacao(valor) {
   if (valor !== "enviar" || !estado.atual) return;
   const notas = Object.fromEntries(
-    CRITERIOS.map(([chave]) => [
-      chave,
-      Number($(`#criterios input[name="${chave}"]:checked`)?.value || 4),
-    ])
+    CRITERIOS.map(([chave]) => [chave, Number($(`#criterios input[name="${chave}"]:checked`)?.value || 4)])
   );
 
   const registro = {
@@ -498,33 +510,28 @@ async function enviarAvaliacao(valor) {
     modo: estado.atual.modo,
     modelo: estado.atual.modelo,
     ...notas,
-    comentario: $("#avaliar-comentario").value.trim() || null,
-    participante_com_deficiencia_visual: $("#avaliar-pcd").checked,
-    consentimento: $("#avaliar-consentimento").checked,
+    comentario: $("#avaliar-comentario")?.value.trim() || null,
+    participante_com_deficiencia_visual: $("#avaliar-pcd")?.checked || false,
+    consentimento: $("#avaliar-consentimento")?.checked ?? true,
     registradoEm: bd.agora(),
   };
 
   await bd.avaliacoes.salvar(registro);
-  if (estado.temServidor) {
-    servidor.enviarAvaliacao(registro).catch(() => {
-      /* ja esta salvo neste aparelho; segue sem interromper a pessoa */
-    });
-  }
-  $("#avaliar-comentario").value = "";
-  anunciar("Avaliação registrada. Obrigado por contribuir com a pesquisa.");
+  if (estado.temServidor) servidor.enviarAvaliacao(registro).catch(() => {});
+  if ($("#avaliar-comentario")) $("#avaliar-comentario").value = "";
+  anunciar("Avaliação registrada.");
 }
 
-// ==================================================================== AJUSTES
 function preencherAjustes() {
-  $("#sel-velocidade").value = String(config.velocidade);
-  $("#opt-autoplay").checked = config.autoplay;
-  $("#opt-vibrar").checked = config.vibrar;
-  $("#opt-contraste").checked = config.contraste;
-  $("#sel-fonte").value = String(config.escalaFonte);
-  $("#campo-chave-ajustes").value = config.apiKey;
-  $("#campo-endpoint").value = config.endpoint;
-  $("#campo-modelo").value = config.modelo;
-  $("#campo-servidor").value = config.servidor;
+  if ($("#sel-velocidade")) $("#sel-velocidade").value = String(config.velocidade);
+  if ($("#opt-autoplay")) $("#opt-autoplay").checked = config.autoplay;
+  if ($("#opt-vibrar")) $("#opt-vibrar").checked = config.vibrar;
+  if ($("#opt-contraste")) $("#opt-contraste").checked = config.contraste;
+  if ($("#sel-fonte")) $("#sel-fonte").value = String(config.escalaFonte);
+  if ($("#campo-chave-ajustes")) $("#campo-chave-ajustes").value = config.apiKey;
+  if ($("#campo-endpoint")) $("#campo-endpoint").value = config.endpoint;
+  if ($("#campo-modelo")) $("#campo-modelo").value = config.modelo;
+  if ($("#campo-servidor")) $("#campo-servidor").value = config.servidor;
   marcarModo(config.modo);
 }
 
@@ -532,29 +539,25 @@ function marcarModo(modo) {
   $$(".modos .chip").forEach((chip) => {
     chip.setAttribute("aria-checked", String(chip.dataset.modo === modo));
   });
-  $("#bloco-pergunta").hidden = modo !== "pergunta";
+  if ($("#bloco-pergunta")) $("#bloco-pergunta").hidden = modo !== "pergunta";
 }
 
 function atualizarPainelSistema() {
   const lista = $("#sistema");
+  if (!lista) return;
+
   const linhas = estado.temServidor
     ? [
         ["Modo", "Servidor do projeto"],
         ["Endereço", baseServidor()],
         ["Modelo de visão", estado.saudeServidor.vlm_model],
-        ["Conexão do modelo", estado.saudeServidor.vlm_detalhe],
         ["Voz", `${estado.saudeServidor.tts_engine} · ${estado.saudeServidor.tts_voz}`],
-        ["Imagens no banco", String(estado.saudeServidor.imagens_no_banco)],
-        ["Descrições geradas", String(estado.saudeServidor.descricoes_geradas)],
-        ["Avaliações", String(estado.saudeServidor.avaliacoes)],
       ]
     : [
         ["Modo", "Direto (sem servidor)"],
         ["Provedor", config.endpoint],
         ["Modelo de visão", config.modelo],
         ["Chave da API", config.apiKey ? "configurada neste aparelho" : "não informada"],
-        ["Voz", "síntese do próprio aparelho"],
-        ["Dados da pesquisa", "guardados neste aparelho (exportáveis)"],
       ];
 
   lista.replaceChildren(
@@ -572,68 +575,82 @@ function atualizarPainelSistema() {
 
 async function salvarConfiguracoesIA() {
   salvar({
-    apiKey: $("#campo-chave-ajustes").value.trim(),
-    endpoint: $("#campo-endpoint").value.trim() || "https://api.groq.com/openai/v1",
-    modelo: $("#campo-modelo").value.trim() || "qwen/qwen3.6-27b",
-    servidor: $("#campo-servidor").value.trim(),
+    apiKey: $("#campo-chave-ajustes")?.value.trim() || "",
+    endpoint: $("#campo-endpoint")?.value.trim() || "https://api.groq.com/openai/v1",
+    modelo: $("#campo-modelo")?.value.trim() || "qwen/qwen3.6-27b",
+    servidor: $("#campo-servidor")?.value.trim() || "",
   });
   await detectarServidor();
   await carregarVozes();
   atualizarPainelSistema();
-  mostrarBlocoChave();
   renderizarBanco();
-
-  if (!estado.temServidor && config.apiKey) {
-    const teste = await ia.verificar();
-    anunciar(teste.ok ? "Configurações salvas e chave funcionando." : `Atenção: ${teste.detalhe}`);
-    if (!teste.ok) mostrarErro(teste.detalhe);
-    else limparErro();
-  } else {
-    anunciar("Configurações salvas.");
-  }
+  anunciar("Configurações salvas.");
 }
 
-// ==================================================================== EVENTOS
+// EVENTOS
 function ligarEventos() {
-  // navegacao entre as abas
+  // Login
+  $("#form-login")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const usuario = $("#login-usuario")?.value.trim();
+    const senha = $("#login-senha")?.value.trim();
+
+    if (!usuario || !senha) {
+      mostrarErro("Preencha o usuário e a senha.");
+      return;
+    }
+
+    limparErro();
+    salvar({ usuarioLogado: true, nomeUsuario: usuario });
+    anunciar(`Login efetuado com sucesso.`);
+    verificarFluxoAcesso();
+  });
+
+  // Salvar Chave Setup
+  $("#btn-salvar-setup-chave")?.addEventListener("click", async () => {
+    const chave = $("#campo-chave-setup")?.value.trim();
+    if (!chave) {
+      mostrarErro("Insira uma chave da API válida.");
+      return;
+    }
+    salvar({ apiKey: chave });
+    if ($("#campo-chave-ajustes")) $("#campo-chave-ajustes").value = chave;
+    limparErro();
+    anunciar("Chave salva com sucesso.");
+    verificarFluxoAcesso();
+  });
+
+  // Abas
   $$(".barra__item").forEach((botao) => {
     botao.addEventListener("click", () => {
       const destino = botao.dataset.ir;
-      $$(".vista").forEach((vista) => {
-        vista.dataset.ativa = String(vista.dataset.vista === destino);
-      });
-      $$(".barra__item").forEach((item) => {
-        if (item.dataset.ir === destino) item.setAttribute("aria-current", "page");
-        else item.removeAttribute("aria-current");
-      });
-      document.querySelector(`.vista[data-vista="${destino}"] h1`)?.focus?.();
+      irParaVista(destino);
       if (destino === "historico") renderizarHistorico();
       if (destino === "banco") renderizarBanco();
       if (destino === "ajustes") atualizarPainelSistema();
     });
   });
 
-  // modos de descricao
+  // Modos
   $$(".modos .chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       salvar({ modo: chip.dataset.modo });
       marcarModo(chip.dataset.modo);
-      if (chip.dataset.modo === "pergunta") $("#campo-pergunta").focus();
-      anunciar(`Modo ${MODOS[chip.dataset.modo]?.rotulo || chip.dataset.modo} selecionado.`);
+      if (chip.dataset.modo === "pergunta") $("#campo-pergunta")?.focus();
     });
   });
 
-  // captura
-  $("#visor").addEventListener("click", capturar);
-  $("#btn-capturar").addEventListener("click", capturar);
-  $("#btn-galeria").addEventListener("click", () => { fala.destravar(); $("#arquivo").click(); });
-  $("#btn-trocar-camera").addEventListener("click", async () => {
+  // Captura
+  $("#visor")?.addEventListener("click", capturar);
+  $("#btn-capturar")?.addEventListener("click", capturar);
+  $("#btn-galeria")?.addEventListener("click", () => { fala.destravar(); $("#arquivo")?.click(); });
+  $("#btn-trocar-camera")?.addEventListener("click", async () => {
     try { await camera.trocar($("#video")); }
     catch (erro) { mostrarErro(camera.traduzirErro(erro)); }
   });
 
   for (const id of ["#arquivo", "#arquivo-camera"]) {
-    $(id).addEventListener("change", async (evento) => {
+    $(id)?.addEventListener("change", async (evento) => {
       const arquivo = evento.target.files?.[0];
       evento.target.value = "";
       if (!arquivo) return;
@@ -647,164 +664,73 @@ function ligarEventos() {
     });
   }
 
-  // resultado
-  $("#btn-ouvir").addEventListener("click", () => ouvir());
-  $("#btn-parar").addEventListener("click", () => fala.parar());
+  // Áudio e Ações
+  $("#btn-ouvir")?.addEventListener("click", () => ouvir());
+  $("#btn-parar")?.addEventListener("click", () => fala.parar());
   fala.aoMudarEstado(alternarBotoesAudio);
 
-  $("#btn-copiar").addEventListener("click", async () => {
+  $("#btn-copiar")?.addEventListener("click", async () => {
     if (!estado.atual) return;
     try {
       await navigator.clipboard.writeText(estado.atual.descricao);
       anunciar("Descrição copiada.");
     } catch {
-      mostrarErro("O navegador não permitiu copiar. Selecione o texto manualmente.");
+      mostrarErro("O navegador não permitiu copiar.");
     }
   });
 
-  $("#btn-compartilhar").addEventListener("click", async () => {
-    if (!estado.atual) return;
-    const dados = {
-      title: "Olhar Acessível",
-      text: estado.atual.descricao,
-    };
-    try {
-      if (navigator.canShare?.({ files: [new File([estado.atual.blob], "foto.jpg", { type: "image/jpeg" })] })) {
-        await navigator.share({
-          ...dados,
-          files: [new File([estado.atual.blob], "foto.jpg", { type: "image/jpeg" })],
-        });
-      } else if (navigator.share) {
-        await navigator.share(dados);
-      } else {
-        await navigator.clipboard.writeText(estado.atual.descricao);
-        anunciar("Compartilhamento indisponível. A descrição foi copiada.");
-      }
-    } catch {
-      /* a pessoa cancelou o compartilhamento */
-    }
+  $("#btn-guardar")?.addEventListener("click", () => {
+    if (estado.atual) $("#dlg-guardar")?.showModal();
   });
+  $("#dlg-guardar")?.addEventListener("close", (evento) => guardarNoBanco(evento.target.returnValue));
 
-  $("#btn-guardar").addEventListener("click", () => {
-    if (!estado.atual) return;
-    $("#dlg-guardar").showModal();
+  $("#btn-avaliar")?.addEventListener("click", () => {
+    if (estado.atual) $("#dlg-avaliar")?.showModal();
   });
-  $("#dlg-guardar").addEventListener("close", (evento) =>
-    guardarNoBanco(evento.target.returnValue)
-  );
+  $("#dlg-avaliar")?.addEventListener("close", (evento) => enviarAvaliacao(evento.target.returnValue));
 
-  $("#btn-avaliar").addEventListener("click", () => {
-    if (!estado.atual) return;
-    $("#dlg-avaliar").showModal();
-  });
-  $("#dlg-avaliar").addEventListener("close", (evento) =>
-    enviarAvaliacao(evento.target.returnValue)
-  );
-
-  $("#btn-nova").addEventListener("click", async () => {
+  $("#btn-nova")?.addEventListener("click", async () => {
     fala.parar();
-    $("#resultado").hidden = true;
-    $("#foto-previa").hidden = true;
+    if ($("#resultado")) $("#resultado").hidden = true;
+    if ($("#foto-previa")) $("#foto-previa").hidden = true;
     limparErro();
     await ligarCamera();
-    $("#btn-capturar").focus();
-    anunciar("Pronto para nova foto.");
+    $("#btn-capturar")?.focus();
   });
 
-  // pergunta por voz
-  $("#btn-ditar").addEventListener("click", async () => {
-    const botao = $("#btn-ditar");
-    botao.dataset.gravando = "true";
-    anunciar("Pode falar a pergunta.");
-    try {
-      const texto = await fala.ouvirPergunta();
-      if (texto) {
-        $("#campo-pergunta").value = texto;
-        anunciar(`Pergunta registrada: ${texto}`);
-      }
-    } catch (erro) {
-      mostrarErro(erro.message);
-    } finally {
-      botao.dataset.gravando = "false";
-    }
-  });
-
-  // primeiro acesso: chave da API
-  $("#btn-salvar-chave").addEventListener("click", async () => {
-    const chave = $("#campo-chave").value.trim();
-    if (!chave) { mostrarErro("Cole a chave da API para continuar."); return; }
-    salvar({ apiKey: chave });
-    $("#campo-chave-ajustes").value = chave;
-    const teste = await ia.verificar();
-    if (!teste.ok) { mostrarErro(teste.detalhe); return; }
-    limparErro();
-    mostrarBlocoChave();
-    await detectarServidor();
-    atualizarPainelSistema();
-    anunciar("Chave salva. Já pode fotografar.");
-    $("#btn-capturar").focus();
-  });
-
-  // ajustes
-  $("#btn-tema").addEventListener("click", () => {
+  // Ajustes
+  $("#btn-tema")?.addEventListener("click", () => {
     const atual = document.documentElement.dataset.tema;
     salvar({ tema: atual === "escuro" ? "claro" : "escuro" });
     aplicarAparencia();
   });
-  $("#sel-voz").addEventListener("change", (e) => salvar({ voz: e.target.value }));
-  $("#sel-velocidade").addEventListener("change", (e) =>
-    salvar({ velocidade: Number(e.target.value) })
-  );
-  $("#opt-autoplay").addEventListener("change", (e) => salvar({ autoplay: e.target.checked }));
-  $("#opt-vibrar").addEventListener("change", (e) => salvar({ vibrar: e.target.checked }));
-  $("#opt-contraste").addEventListener("change", (e) => {
+  $("#sel-voz")?.addEventListener("change", (e) => salvar({ voz: e.target.value }));
+  $("#sel-velocidade")?.addEventListener("change", (e) => salvar({ velocidade: Number(e.target.value) }));
+  $("#opt-autoplay")?.addEventListener("change", (e) => salvar({ autoplay: e.target.checked }));
+  $("#opt-vibrar")?.addEventListener("change", (e) => salvar({ vibrar: e.target.checked }));
+  $("#opt-contraste")?.addEventListener("change", (e) => {
     salvar({ contraste: e.target.checked });
     aplicarAparencia();
   });
-  $("#sel-fonte").addEventListener("change", (e) => {
+  $("#sel-fonte")?.addEventListener("change", (e) => {
     salvar({ escalaFonte: Number(e.target.value) });
     aplicarAparencia();
   });
-  $("#btn-salvar-ia").addEventListener("click", salvarConfiguracoesIA);
-  $("#btn-atualizar-saude").addEventListener("click", async () => {
-    await detectarServidor();
-    atualizarPainelSistema();
-    anunciar("Estado do sistema atualizado.");
-  });
+  $("#btn-salvar-ia")?.addEventListener("click", salvarConfiguracoesIA);
 
-  // dados da pesquisa
-  $("#btn-exportar-json").addEventListener("click", async () => {
+  // Pesquisa
+  $("#btn-exportar-json")?.addEventListener("click", async () => {
     const dados = await bd.exportarJson();
     bd.baixar("olhar-acessivel-dados.json", JSON.stringify(dados, null, 2));
-    anunciar("Arquivo JSON gerado.");
   });
-  $("#btn-exportar-csv").addEventListener("click", async () => {
+  $("#btn-exportar-csv")?.addEventListener("click", async () => {
     const arquivos = await bd.exportarCsv();
     for (const [nome, conteudo] of Object.entries(arquivos)) {
       if (conteudo) bd.baixar(`olhar-acessivel-${nome}`, conteudo, "text/csv;charset=utf-8");
     }
-    anunciar("Arquivos CSV gerados.");
-  });
-  $("#btn-limpar-historico").addEventListener("click", async () => {
-    if (!confirm("Apagar todas as descrições guardadas neste aparelho?")) return;
-    await bd.descricoes.limpar();
-    renderizarHistorico();
-    anunciar("Histórico apagado.");
   });
 
-  // atalhos de teclado (uso em computador)
-  document.addEventListener("keydown", (evento) => {
-    if (evento.target.matches("input, textarea, select")) return;
-    if (evento.key === " " || evento.key === "Enter") {
-      if (document.activeElement === document.body) { evento.preventDefault(); capturar(); }
-    }
-    if (evento.key === "Escape") fala.parar();
-  });
-
-  // o primeiro toque em qualquer lugar libera o audio do navegador
   document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarAparencia);
-  window.addEventListener("pagehide", () => camera.desligar());
 }
 
 iniciar();
