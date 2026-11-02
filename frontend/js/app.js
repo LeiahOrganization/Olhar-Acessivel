@@ -55,14 +55,11 @@ function verificarFluxoAcesso() {
   if (!config.usuarioLogado) {
     irParaVista("login");
 
-    if (!config.instrucaoPrimeiroLoginLida) {
-      mensagemBoasVindasPendente =
-        "Agora, como é seu primeiro login, será necessária a ajuda de um auxiliar " +
-        "para colocar o seu e-mail e criar uma senha. Logo após, será necessário " +
-        "entrar no site da Groq para criar a sua própria chave API, para copiar e colar no aplicativo.";
-    } else {
-      anunciar("Tela de login.");
-    }
+    // Sempre prepara a mensagem caso não esteja logado
+    mensagemBoasVindasPendente =
+      "Agora, como é seu primeiro login, será necessária a ajuda de um auxiliar " +
+      "para colocar o seu e-mail e criar uma senha. Logo após, será necessário " +
+      "entrar no site da Groq para criar a sua própria chave API, para copiar e colar no aplicativo.";
     return;
   }
 
@@ -755,25 +752,23 @@ function ligarEventos() {
     }
   });
 
-  // REPRODUÇÃO DA MENSAGEM INICIAL DE BOAS-VINDAS
-  async function executarBoasVindasSePendente() {
-    if (!mensagemBoasVindasPendente || tocandoBoasVindas) return false;
-
-    const texto = mensagemBoasVindasPendente;
-    mensagemBoasVindasPendente = null;
-    tocandoBoasVindas = true;
-
+  // REPRODUÇÃO DA MENSAGEM INICIAL NO PRIMEIRO GESTO
+  const tentarTocarBoasVindas = () => {
     fala.destravar();
-    try {
-      await fala.falar(texto, { temServidor: estado.temServidor });
-      salvar({ instrucaoPrimeiroLoginLida: true });
-    } catch {} finally {
-      tocandoBoasVindas = false;
-    }
-    return true;
-  }
+    if (mensagemBoasVindasPendente && !tocandoBoasVindas) {
+      const texto = mensagemBoasVindasPendente;
+      mensagemBoasVindasPendente = null;
+      tocandoBoasVindas = true;
 
-  // ANÚNCIO DE CAMPOS DE TEXTO
+      fala.falar(texto, { temServidor: estado.temServidor })
+        .then(() => { tocandoBoasVindas = false; })
+        .catch(() => { tocandoBoasVindas = false; });
+      return true;
+    }
+    return false;
+  };
+
+  // ANÚNCIO DOS CAMPOS DE TEXTO
   const mapeamentoVozCampos = [
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
     { id: "#login-senha", texto: "Campo de senha" },
@@ -786,25 +781,21 @@ function ligarEventos() {
     const elemento = $(id);
     if (!elemento) return;
 
-    elemento.addEventListener("focus", async () => {
-      // Se houver boas-vindas pendentes, executa primeiro
-      if (mensagemBoasVindasPendente) {
-        await executarBoasVindasSePendente();
-        return;
-      }
-      // Se estiver tocando a instrução inicial, não corta com o nome do campo
+    elemento.addEventListener("focus", () => {
+      // Se tocou pela primeira vez no campo, toca as boas-vindas e não interrompe
+      if (tentarTocarBoasVindas()) return;
       if (tocandoBoasVindas) return;
 
       fala.falar(texto, { temServidor: estado.temServidor });
     });
   });
 
-  // PRIMEIRA INTERAÇÃO EM QUALQUER LUGAR DA TELA
+  // PRIMEIRO GESTO EM QUALQUER ÁREA DA TELA
   const primeiraInteracaoGeral = () => {
-    executarBoasVindasSePendente();
+    tentarTocarBoasVindas();
   };
 
-  document.addEventListener("pointerdown", primeiraInteracaoGeral, { once: true });
+  document.addEventListener("pointerdown", primeiraInteracaoGeral, { passive: true });
 }
 
 iniciar();
