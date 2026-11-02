@@ -21,6 +21,9 @@ const estado = {
   filtroBanco: "",
 };
 
+let mensagemBoasVindasPendente = null;
+let tocandoBoasVindas = false;
+
 const CRITERIOS = [
   ["clareza", "Clareza — foi fácil de entender?"],
   ["completude", "Completude — falou do que importava?"],
@@ -52,14 +55,11 @@ function verificarFluxoAcesso() {
   if (!config.usuarioLogado) {
     irParaVista("login");
 
-    // Instrui o usuário com deficiência visual apenas no primeiro acesso
     if (!config.instrucaoPrimeiroLoginLida) {
-      const instrucao =
+      mensagemBoasVindasPendente =
         "Agora, como é seu primeiro login, será necessária a ajuda de um auxiliar " +
         "para colocar o seu e-mail e criar uma senha. Logo após, será necessário " +
         "entrar no site da Groq para criar a sua própria chave API, para copiar e colar no aplicativo.";
-      fala.falar(instrucao, { temServidor: estado.temServidor });
-      salvar({ instrucaoPrimeiroLoginLida: true });
     } else {
       anunciar("Tela de login.");
     }
@@ -68,7 +68,7 @@ function verificarFluxoAcesso() {
 
   if (!config.apiKey && !estado.temServidor) {
     irParaVista("setup-chave");
-    fala.falar("Informe a chave da API da Groq para continuar.", { temServidor: estado.temServidor });
+    mensagemBoasVindasPendente = "Informe a chave da API da Groq para continuar.";
     return;
   }
 
@@ -755,7 +755,25 @@ function ligarEventos() {
     }
   });
 
-  // ANÚNCIO EM ÁUDIO AO TOCAR OU FOCAR NOS CAMPOS DE ENTRADA
+  // REPRODUÇÃO DA MENSAGEM INICIAL DE BOAS-VINDAS
+  async function executarBoasVindasSePendente() {
+    if (!mensagemBoasVindasPendente || tocandoBoasVindas) return false;
+
+    const texto = mensagemBoasVindasPendente;
+    mensagemBoasVindasPendente = null;
+    tocandoBoasVindas = true;
+
+    fala.destravar();
+    try {
+      await fala.falar(texto, { temServidor: estado.temServidor });
+      salvar({ instrucaoPrimeiroLoginLida: true });
+    } catch {} finally {
+      tocandoBoasVindas = false;
+    }
+    return true;
+  }
+
+  // ANÚNCIO DE CAMPOS DE TEXTO
   const mapeamentoVozCampos = [
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
     { id: "#login-senha", texto: "Campo de senha" },
@@ -768,13 +786,25 @@ function ligarEventos() {
     const elemento = $(id);
     if (!elemento) return;
 
-    const falarRotulo = () => fala.falar(texto, { temServidor: estado.temServidor });
+    elemento.addEventListener("focus", async () => {
+      // Se houver boas-vindas pendentes, executa primeiro
+      if (mensagemBoasVindasPendente) {
+        await executarBoasVindasSePendente();
+        return;
+      }
+      // Se estiver tocando a instrução inicial, não corta com o nome do campo
+      if (tocandoBoasVindas) return;
 
-    elemento.addEventListener("focus", falarRotulo);
-    elemento.addEventListener("click", falarRotulo);
+      fala.falar(texto, { temServidor: estado.temServidor });
+    });
   });
 
-  document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
+  // PRIMEIRA INTERAÇÃO EM QUALQUER LUGAR DA TELA
+  const primeiraInteracaoGeral = () => {
+    executarBoasVindasSePendente();
+  };
+
+  document.addEventListener("pointerdown", primeiraInteracaoGeral, { once: true });
 }
 
 iniciar();
