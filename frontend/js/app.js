@@ -103,12 +103,12 @@ async function detectarServidor() {
 
   if (estado.temServidor) {
     status.dataset.estado = estado.saudeServidor.vlm_ok ? "ok" : "erro";
-    texto.textContent = estado.saudeServidor.vlm_ok ? "Servidor" : "Servidor com falha";
+    texto.textContent = estado.saudeServidor.vlm_ok ? "Servidor (Voz Neural)" : "Servidor com falha";
     return;
   }
   if (config.apiKey) {
     status.dataset.estado = "ok";
-    texto.textContent = "Pronto";
+    texto.textContent = "Pronto (Voz Local)";
   } else {
     status.dataset.estado = "erro";
     texto.textContent = "Sem chave";
@@ -263,19 +263,20 @@ function mostrarResultado(registro) {
   $("#resultado-texto").focus();
 }
 
-// ÁUDIO
+// ÁUDIO E VOZ NEURAL
 async function ouvir(texto, { automatico = false } = {}) {
   const conteudo = texto || estado.atual?.descricao;
   if (!conteudo) return;
   try {
+    fala.destravar();
     await fala.falar(conteudo, { temServidor: estado.temServidor });
   } catch (erro) {
     if (automatico) {
-      anunciar("Descrição pronta. Toque em ouvir descrição.");
+      anunciar("Descrição pronta. Toque em ouvir descrição para escutar.");
       $("#btn-ouvir")?.focus();
       return;
     }
-    mostrarErro(erro.message || "Não consegui falar a descrição.");
+    mostrarErro(erro.message || "Não consegui sintetizar a voz.");
   }
 }
 
@@ -290,8 +291,15 @@ async function carregarVozes() {
   const preencher = async () => {
     const vozes = await fala.vozesDisponiveis(estado.temServidor);
     seletor.replaceChildren();
-    seletor.appendChild(new Option("Automática (melhor voz)", ""));
-    for (const voz of vozes) seletor.appendChild(new Option(voz.rotulo, voz.id));
+    
+    const opcaoAuto = estado.temServidor
+      ? "Automática (Voz Neural de Alta Qualidade)"
+      : "Automática (Melhor Voz do Aparelho)";
+    seletor.appendChild(new Option(opcaoAuto, ""));
+
+    for (const voz of vozes) {
+      seletor.appendChild(new Option(voz.rotulo, voz.id));
+    }
     seletor.value = config.voz || "";
   };
   await preencher();
@@ -394,8 +402,8 @@ async function renderizarBanco() {
           criadoEm: i.criadoEm,
           url: i.miniatura,
         }));
-  } catch (erro) {
-    galeria.replaceChildren(criarVazio(`Não foi possível carregar o banco.`));
+  } catch {
+    galeria.replaceChildren(criarVazio("Não foi possível carregar o banco de imagens."));
     return;
   }
 
@@ -548,16 +556,16 @@ function atualizarPainelSistema() {
 
   const linhas = estado.temServidor
     ? [
-        ["Modo", "Servidor do projeto"],
-        ["Endereço", baseServidor()],
-        ["Modelo de visão", estado.saudeServidor.vlm_model],
-        ["Voz", `${estado.saudeServidor.tts_engine} · ${estado.saudeServidor.tts_voz}`],
+        ["Modo", "Servidor do projeto (Voz Neural Ativa)"],
+        ["Endereço do Servidor", baseServidor()],
+        ["Modelo de Visão", estado.saudeServidor.vlm_model],
+        ["Motor de Áudio", `${estado.saudeServidor.tts_engine} · ${estado.saudeServidor.tts_voz}`],
       ]
     : [
-        ["Modo", "Direto (sem servidor)"],
+        ["Modo", "Direto (Navegador)"],
         ["Provedor", config.endpoint],
-        ["Modelo de visão", config.modelo],
-        ["Chave da API", config.apiKey ? "configurada neste aparelho" : "não informada"],
+        ["Modelo de Visão", config.modelo],
+        ["Chave da API", config.apiKey ? "Configurada neste aparelho" : "Não informada"],
       ];
 
   lista.replaceChildren(
@@ -602,7 +610,7 @@ function ligarEventos() {
 
     limparErro();
     salvar({ usuarioLogado: true, nomeUsuario: usuario });
-    anunciar(`Login efetuado com sucesso.`);
+    anunciar("Login efetuado com sucesso.");
     verificarFluxoAcesso();
   });
 
@@ -717,6 +725,12 @@ function ligarEventos() {
     aplicarAparencia();
   });
   $("#btn-salvar-ia")?.addEventListener("click", salvarConfiguracoesIA);
+  $("#btn-atualizar-saude")?.addEventListener("click", async () => {
+    await detectarServidor();
+    await carregarVozes();
+    atualizarPainelSistema();
+    anunciar("Estado do sistema atualizado.");
+  });
 
   // Pesquisa
   $("#btn-exportar-json")?.addEventListener("click", async () => {
