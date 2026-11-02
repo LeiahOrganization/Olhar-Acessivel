@@ -2,7 +2,7 @@
 // ruim. As chamadas ao modelo de visao e ao servidor sempre vao a rede — o que
 // fica em cache e so a interface.
 
-const CACHE = "olhar-acessivel-v2";
+const CACHE = "olhar-acessivel-v3";
 const CASCA = [
   "./",
   "./index.html",
