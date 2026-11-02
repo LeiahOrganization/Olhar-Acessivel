@@ -21,9 +21,6 @@ const estado = {
   filtroBanco: "",
 };
 
-let mensagemBoasVindasPendente = null;
-let tocandoBoasVindas = false;
-
 const CRITERIOS = [
   ["clareza", "Clareza — foi fácil de entender?"],
   ["completude", "Completude — falou do que importava?"],
@@ -54,17 +51,13 @@ function irParaVista(destino) {
 function verificarFluxoAcesso() {
   if (!config.usuarioLogado) {
     irParaVista("login");
-
-    mensagemBoasVindasPendente =
-      "Agora, como é seu primeiro login, será necessária a ajuda de um auxiliar " +
-      "para colocar o seu e-mail e criar uma senha. Logo após, será necessário " +
-      "entrar no site da Groq para criar a sua própria chave API, para copiar e colar no aplicativo.";
+    anunciar("Tela de login.");
     return;
   }
 
   if (!config.apiKey && !estado.temServidor) {
     irParaVista("setup-chave");
-    mensagemBoasVindasPendente = "Informe a chave da API da Groq para continuar.";
+    anunciar("Informe a chave da API da Groq para continuar.");
     return;
   }
 
@@ -751,20 +744,15 @@ function ligarEventos() {
     }
   });
 
-  // REPRODUÇÃO DA MENSAGEM INICIAL E ANÚNCIO DOS CAMPOS DE TEXTO
-  const tentarTocarBoasVindas = async () => {
-    fala.destravar();
-    if (mensagemBoasVindasPendente && !tocandoBoasVindas) {
-      const texto = mensagemBoasVindasPendente;
-      mensagemBoasVindasPendente = null;
-      tocandoBoasVindas = true;
+  // TEXTO COMPLETO DO AVISO
+  const textoAvisoInstrucao = 
+    "Aviso de acessibilidade. Como é seu primeiro login, será necessária a ajuda de um auxiliar " +
+    "para colocar o seu e-mail e criar uma senha. Logo após, será necessário entrar no site da Groq " +
+    "para criar a sua própria chave API, para copiar e colar no aplicativo.";
 
-      await fala.falar(texto, { temServidor: estado.temServidor });
-      tocandoBoasVindas = false;
-    }
-  };
-
+  // ANÚNCIO DE CAMPOS E DO BLOCO DE AVISO (VIA CLIQUE E FOCO)
   const mapeamentoVozCampos = [
+    { id: "#aviso-ajuda", texto: textoAvisoInstrucao },
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
     { id: "#login-senha", texto: "Campo de senha" },
     { id: "#campo-chave-setup", texto: "Campo da chave da API Groq" },
@@ -776,29 +764,16 @@ function ligarEventos() {
     const elemento = $(id);
     if (!elemento) return;
 
-    elemento.addEventListener("focus", async () => {
+    const falarElemento = () => {
       fala.destravar();
-      
-      // Se houver instrução de boas-vindas pendente, toca ela primeiro
-      if (mensagemBoasVindasPendente) {
-        await tentarTocarBoasVindas();
-      }
-      
-      // Em seguida, narra o nome do campo focado
       fala.falar(texto, { temServidor: estado.temServidor });
-    });
+    };
+
+    elemento.addEventListener("focus", falarElemento);
+    elemento.addEventListener("click", falarElemento);
   });
 
-  // PRIMEIRO GESTO EM QUALQUER ÁREA DA TELA (EXCETO DIRETO NOS CAMPOS)
-  const primeiraInteracaoGeral = (e) => {
-    // Se o toque foi direto em um dos campos de texto, o evento focus cuidará da ordem
-    if (e.target && e.target.closest("#login-usuario, #login-senha, #campo-chave-setup")) {
-      return;
-    }
-    tentarTocarBoasVindas();
-  };
-
-  document.addEventListener("pointerdown", primeiraInteracaoGeral, { passive: true });
+  document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
 }
 
 iniciar();

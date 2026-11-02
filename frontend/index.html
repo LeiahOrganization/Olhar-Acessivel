@@ -44,9 +44,18 @@
         <h1 class="sr-only" id="titulo-login">Acesso ao aplicativo</h1>
         <div class="cartao cartao--destaque">
           <h2 class="cartao__titulo">Entrar no Olhar Acessível</h2>
-          <p class="aviso-ajuda" role="note" style="background: var(--surface-2); border-left: 5px solid var(--acento); padding: 12px; border-radius: var(--raio-p); margin-bottom: 16px; font-size: 0.95rem;">
-            ♿ <strong>Aviso de Acessibilidade:</strong> Se você possui deficiência visual e precisa de suporte para digitar seu usuário e senha, peça ajuda a um monitor ou tutor para realizar este primeiro acesso.
-          </p>
+
+          <!-- BLOCO DE AVISO CLICÁVEL E ACESSÍVEL -->
+          <div 
+            class="aviso-ajuda" 
+            id="aviso-ajuda" 
+            tabindex="0" 
+            role="button" 
+            aria-label="Aviso de acessibilidade. Toque para ouvir as instruções do primeiro acesso."
+            style="background: var(--surface-2); border-left: 5px solid var(--acento); padding: 14px; border-radius: var(--raio-p); margin-bottom: 16px; font-size: 0.95rem; cursor: pointer;"
+          >
+            ♿ <strong>Aviso de Acessibilidade (Toque para ouvir):</strong> Se você possui deficiência visual e precisa de suporte para digitar seu usuário e senha, peça ajuda a um monitor ou tutor para realizar este primeiro acesso.
+          </div>
 
           <form id="form-login" onsubmit="return false;">
             <label class="rotulo" for="login-usuario">Usuário ou E-mail</label>
