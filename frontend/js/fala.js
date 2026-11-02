@@ -1,9 +1,9 @@
 // Saida em audio da descricao.
 //
 // Ordem de preferencia:
-//   1. Servidor do projeto (Edge TTS / voz neural no backend)
-//   2. Voz online em MP3 (Google TTS - fluida e natural)
-//   3. Voz do aparelho (Web Speech API - funciona offline)
+//   1. Servidor do projeto (Edge TTS / voz neural no backend Python)
+//   2. Voz neural via API no frontend (OpenAI TTS - humana e fluida no GitHub Pages)
+//   3. Voz do aparelho (Web Speech API - fallback offline)
 
 import { config } from "./config.js";
 import * as servidor from "./servidor.js";
@@ -57,19 +57,39 @@ export function parar() {
   anunciarEstado(false);
 }
 
-// ------------------------------------------------------------ VOZ ONLINE (MP3)
-async function falarComGoogleTTS(texto) {
-  // Limita o tamanho do bloco para a API pública de áudio
-  const trecho = texto.slice(0, 200); 
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(trecho)}&tl=pt-BR&client=tw-ob`;
+// ------------------------------------------------------------ VOZ NEURAL (OPENAI API)
+async function falarComOpenAI(texto) {
+  const apiKey = config.apiKey;
+  if (!apiKey || !apiKey.startsWith("sk-")) {
+    throw new Error("Chave da API OpenAI necessária para voz neural.");
+  }
 
+  const resposta = await fetch("https://api.openai.com/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "tts-1",
+      input: texto,
+      voice: "nova", // Opções de voz humana: nova, alloy, echo, fable, onyx, shimmer
+      speed: Number(config.velocidade) || 1.0,
+    }),
+  });
+
+  if (!resposta.ok) {
+    throw new Error("Falha ao gerar voz neural via API.");
+  }
+
+  const blob = await resposta.blob();
   const audio = elementoAudio();
   if (urlAtual) URL.revokeObjectURL(urlAtual);
-  
-  audio.src = url;
-  audio.playbackRate = Number(config.velocidade) || 1;
 
+  urlAtual = URL.createObjectURL(blob);
+  audio.src = urlAtual;
   await audio.play();
+
   return new Promise((resolve) => {
     audio.onended = () => {
       anunciarEstado(false);
@@ -120,7 +140,7 @@ function falarNoAparelho(texto) {
     speechSynthesis.cancel();
     const fala = new SpeechSynthesisUtterance(texto);
     fala.lang = "pt-BR";
-    fala.rate = Number(config.velocidade) || 1;
+    fala.rate = Number(config.velocidade) || 1.0;
 
     fala.onstart = () => anunciarEstado(true);
     fala.onend = () => { anunciarEstado(false); resolve(); };
@@ -152,14 +172,14 @@ function paraPercentual(velocidade) {
 }
 
 /**
- * Função principal de fala
+ * Função principal de áudio
  */
 export async function falar(texto, { temServidor = false } = {}) {
   parar();
   const limpo = String(texto || "").trim();
   if (!limpo) return "vazio";
 
-  // 1. Tenta o servidor do projeto se estiver rodando
+  // 1. Tenta o servidor backend em Python (se estiver rodando)
   if (temServidor && !config.voz?.startsWith("local:")) {
     try {
       await falarComServidor(limpo);
@@ -167,10 +187,10 @@ export async function falar(texto, { temServidor = false } = {}) {
     } catch {}
   }
 
-  // 2. Tenta a voz online MP3 (Google TTS)
+  // 2. Tenta a voz neural via API (OpenAI) no navegador (para GitHub Pages)
   try {
-    await falarComGoogleTTS(limpo);
-    return "online";
+    await falarComOpenAI(limpo);
+    return "openai";
   } catch {}
 
   // 3. Fallback para a voz do aparelho
