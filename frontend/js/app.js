@@ -51,13 +51,24 @@ function irParaVista(destino) {
 function verificarFluxoAcesso() {
   if (!config.usuarioLogado) {
     irParaVista("login");
-    anunciar("Tela de login.");
+
+    // Instrui o usuário com deficiência visual apenas no primeiro acesso
+    if (!config.instrucaoPrimeiroLoginLida) {
+      const instrucao =
+        "Agora, como é seu primeiro login, será necessária a ajuda de um auxiliar " +
+        "para colocar o seu e-mail e criar uma senha. Logo após, será necessário " +
+        "entrar no site da Groq para criar a sua própria chave API, para copiar e colar no aplicativo.";
+      fala.falar(instrucao, { temServidor: estado.temServidor });
+      salvar({ instrucaoPrimeiroLoginLida: true });
+    } else {
+      anunciar("Tela de login.");
+    }
     return;
   }
 
   if (!config.apiKey && !estado.temServidor) {
     irParaVista("setup-chave");
-    anunciar("Informe a chave da API.");
+    fala.falar("Informe a chave da API da Groq para continuar.", { temServidor: estado.temServidor });
     return;
   }
 
@@ -742,6 +753,25 @@ function ligarEventos() {
     for (const [nome, conteudo] of Object.entries(arquivos)) {
       if (conteudo) bd.baixar(`olhar-acessivel-${nome}`, conteudo, "text/csv;charset=utf-8");
     }
+  });
+
+  // ANÚNCIO EM ÁUDIO AO TOCAR OU FOCAR NOS CAMPOS DE ENTRADA
+  const mapeamentoVozCampos = [
+    { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
+    { id: "#login-senha", texto: "Campo de senha" },
+    { id: "#campo-chave-setup", texto: "Campo da chave da API Groq" },
+    { id: "#campo-chave-ajustes", texto: "Campo da chave da API nos ajustes" },
+    { id: "#link-groq-site", texto: "Link para abrir o site da Groq" }
+  ];
+
+  mapeamentoVozCampos.forEach(({ id, texto }) => {
+    const elemento = $(id);
+    if (!elemento) return;
+
+    const falarRotulo = () => fala.falar(texto, { temServidor: estado.temServidor });
+
+    elemento.addEventListener("focus", falarRotulo);
+    elemento.addEventListener("click", falarRotulo);
   });
 
   document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
