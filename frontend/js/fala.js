@@ -1,9 +1,4 @@
-// Saida em audio da descricao.
-//
-// Ordem de preferencia:
-//   1. Servidor do projeto (Edge TTS / voz neural no backend Python)
-//   2. Voz neural via API no frontend (OpenAI TTS - humana e fluida no GitHub Pages)
-//   3. Voz do aparelho (Web Speech API - fallback offline)
+// Saida em audio da descricao com tratamento de erros de autoplay e navegadores.
 
 import { config } from "./config.js";
 import * as servidor from "./servidor.js";
@@ -53,7 +48,9 @@ export function destravar() {
 
 export function parar() {
   if (elemento) { elemento.pause(); elemento.currentTime = 0; }
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if ("speechSynthesis" in window) {
+    try { speechSynthesis.cancel(); } catch {}
+  }
   anunciarEstado(false);
 }
 
@@ -73,7 +70,7 @@ async function falarComOpenAI(texto) {
     body: JSON.stringify({
       model: "tts-1",
       input: texto,
-      voice: "nova", // Opções de voz humana: nova, alloy, echo, fable, onyx, shimmer
+      voice: "nova",
       speed: Number(config.velocidade) || 1.0,
     }),
   });
@@ -132,24 +129,49 @@ export async function vozesDisponiveis(temServidor) {
 }
 
 function falarNoAparelho(texto) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (!("speechSynthesis" in window)) {
-      reject(new Error("Sem síntese de voz disponível."));
+      anunciarEstado(false);
+      resolve();
       return;
     }
-    speechSynthesis.cancel();
+
+    try {
+      speechSynthesis.cancel();
+    } catch {}
+
     const fala = new SpeechSynthesisUtterance(texto);
     fala.lang = "pt-BR";
     fala.rate = Number(config.velocidade) || 1.0;
 
+    // Tenta definir explicitamente uma voz em Português
+    const vozes = speechSynthesis.getVoices();
+    if (vozes.length > 0) {
+      const vozSalva = config.voz?.startsWith("local:") ? config.voz.slice(6) : config.voz;
+      const vozEncontrada =
+        vozes.find((v) => v.voiceURI === vozSalva) ||
+        vozes.find((v) => v.lang?.toLowerCase().includes("pt-br")) ||
+        vozes.find((v) => v.lang?.toLowerCase().startsWith("pt"));
+      if (vozEncontrada) fala.voice = vozEncontrada;
+    }
+
     fala.onstart = () => anunciarEstado(true);
-    fala.onend = () => { anunciarEstado(false); resolve(); };
-    fala.onerror = (e) => {
+    fala.onend = () => {
       anunciarEstado(false);
-      if (e.error === "interrupted" || e.error === "canceled") resolve();
-      else reject(new Error("Falha na voz do aparelho."));
+      resolve();
     };
-    speechSynthesis.speak(fala);
+    fala.onerror = () => {
+      anunciarEstado(false);
+      // Resolve graciosamente sem lançar erro para a tela do usuário
+      resolve();
+    };
+
+    try {
+      speechSynthesis.speak(fala);
+    } catch {
+      anunciarEstado(false);
+      resolve();
+    }
   });
 }
 
@@ -172,14 +194,14 @@ function paraPercentual(velocidade) {
 }
 
 /**
- * Função principal de áudio
+ * Função principal de fala
  */
 export async function falar(texto, { temServidor = false } = {}) {
   parar();
   const limpo = String(texto || "").trim();
   if (!limpo) return "vazio";
 
-  // 1. Tenta o servidor backend em Python (se estiver rodando)
+  // 1. Tenta o servidor backend em Python (se estiver ativo)
   if (temServidor && !config.voz?.startsWith("local:")) {
     try {
       await falarComServidor(limpo);
@@ -187,13 +209,15 @@ export async function falar(texto, { temServidor = false } = {}) {
     } catch {}
   }
 
-  // 2. Tenta a voz neural via API (OpenAI) no navegador (para GitHub Pages)
-  try {
-    await falarComOpenAI(limpo);
-    return "openai";
-  } catch {}
+  // 2. Tenta a voz neural via API (OpenAI) se houver chave válida
+  if (config.apiKey && config.apiKey.startsWith("sk-")) {
+    try {
+      await falarComOpenAI(limpo);
+      return "openai";
+    } catch {}
+  }
 
-  // 3. Fallback para a voz do aparelho
+  // 3. Fallback seguro para a voz do dispositivo
   await falarNoAparelho(limpo);
   return "aparelho";
 }
