@@ -13,6 +13,7 @@ let elemento = null;
 let destravado = false;
 let ouvintes = [];
 let urlAtual = "";
+let falaEmAndamento = false;
 
 function elementoAudio() {
   if (!elemento) {
@@ -54,9 +55,10 @@ export function destravar() {
 
 export function parar() {
   if (elemento) { elemento.pause(); elemento.currentTime = 0; }
-  if ("speechSynthesis" in window) {
+  if ("speechSynthesis" in window && falaEmAndamento) {
     try { speechSynthesis.cancel(); } catch {}
   }
+  falaEmAndamento = false;
   anunciarEstado(false);
 }
 
@@ -143,7 +145,9 @@ function falarNoAparelho(texto) {
     }
 
     try {
-      speechSynthesis.cancel();
+      if (speechSynthesis.speaking || speechSynthesis.pending) {
+        speechSynthesis.cancel();
+      }
     } catch {}
 
     const fala = new SpeechSynthesisUtterance(texto);
@@ -160,19 +164,28 @@ function falarNoAparelho(texto) {
       if (vozEncontrada) fala.voice = vozEncontrada;
     }
 
-    fala.onstart = () => anunciarEstado(true);
+    fala.onstart = () => {
+      falaEmAndamento = true;
+      anunciarEstado(true);
+    };
     fala.onend = () => {
+      falaEmAndamento = false;
       anunciarEstado(false);
       resolve();
     };
     fala.onerror = () => {
+      falaEmAndamento = false;
       anunciarEstado(false);
       resolve();
     };
 
     try {
       speechSynthesis.speak(fala);
+      if (speechSynthesis.paused) {
+        speechSynthesis.resume();
+      }
     } catch {
+      falaEmAndamento = false;
       anunciarEstado(false);
       resolve();
     }
@@ -200,27 +213,35 @@ function paraPercentual(velocidade) {
 /**
  * Função principal de fala
  */
-export async function falar(texto, { temServidor = false } = {}) {
-  parar();
+export function falar(texto, { temServidor = false } = {}) {
   const limpo = String(texto || "").trim();
-  if (!limpo) return "vazio";
+  if (!limpo) return Promise.resolve("vazio");
 
-  if (temServidor && !config.voz?.startsWith("local:")) {
-    try {
-      await falarComServidor(limpo);
-      return "servidor";
-    } catch {}
+  // Se for reprodução local (sem servidor/OpenAI), executa de forma síncrona
+  if (!temServidor && (!config.apiKey || !config.apiKey.startsWith("sk-"))) {
+    parar();
+    return falarNoAparelho(limpo);
   }
 
-  if (config.apiKey && config.apiKey.startsWith("sk-")) {
-    try {
-      await falarComOpenAI(limpo);
-      return "openai";
-    } catch {}
-  }
+  parar();
+  return (async () => {
+    if (temServidor && !config.voz?.startsWith("local:")) {
+      try {
+        await falarComServidor(limpo);
+        return "servidor";
+      } catch {}
+    }
 
-  await falarNoAparelho(limpo);
-  return "aparelho";
+    if (config.apiKey && config.apiKey.startsWith("sk-")) {
+      try {
+        await falarComOpenAI(limpo);
+        return "openai";
+      } catch {}
+    }
+
+    await falarNoAparelho(limpo);
+    return "aparelho";
+  })();
 }
 
 // ------------------------------------------------------ DITADO DA PERGUNTA

@@ -744,13 +744,12 @@ function ligarEventos() {
     }
   });
 
-  // TEXTO COMPLETO DO AVISO
+  // TEXTO DO AVISO INICIAL
   const textoAvisoInstrucao = 
     "Aviso de acessibilidade. Como é seu primeiro login, será necessária a ajuda de um auxiliar " +
     "para colocar o seu e-mail e criar uma senha. Logo após, será necessário entrar no site da Groq " +
     "para criar a sua própria chave API, para copiar e colar no aplicativo.";
 
-  // ANÚNCIO DE CAMPOS E DO BLOCO DE AVISO (VIA CLIQUE E FOCO)
   const mapeamentoVozCampos = [
     { id: "#aviso-ajuda", texto: textoAvisoInstrucao },
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
@@ -760,17 +759,29 @@ function ligarEventos() {
     { id: "#link-groq-site", texto: "Link para abrir o site da Groq" }
   ];
 
+  let ultimoTextoFalado = "";
+  let ultimoTempoFala = 0;
+
+  // Filtro para impedir que eventos sobrepostos (pointerdown + focus + click) cancelem o som
+  const falarElementoDebounced = (texto) => {
+    const agora = Date.now();
+    if (texto === ultimoTextoFalado && agora - ultimoTempoFala < 400) return;
+    
+    ultimoTextoFalado = texto;
+    ultimoTempoFala = agora;
+    
+    fala.destravar();
+    fala.falar(texto, { temServidor: estado.temServidor });
+  };
+
   mapeamentoVozCampos.forEach(({ id, texto }) => {
     const elemento = $(id);
     if (!elemento) return;
 
-    const falarElemento = () => {
-      fala.destravar();
-      fala.falar(texto, { temServidor: estado.temServidor });
-    };
-
-    elemento.addEventListener("focus", falarElemento);
-    elemento.addEventListener("click", falarElemento);
+    // Dispara no toque direto do dedo (preserva user-activation)
+    elemento.addEventListener("pointerdown", () => falarElementoDebounced(texto), { passive: true });
+    // Dispara na navegação por leitor de tela / teclado
+    elemento.addEventListener("focus", () => falarElementoDebounced(texto));
   });
 
   document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
