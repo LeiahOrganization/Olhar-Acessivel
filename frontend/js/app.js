@@ -55,7 +55,6 @@ function verificarFluxoAcesso() {
   if (!config.usuarioLogado) {
     irParaVista("login");
 
-    // Sempre prepara a mensagem caso não esteja logado
     mensagemBoasVindasPendente =
       "Agora, como é seu primeiro login, será necessária a ajuda de um auxiliar " +
       "para colocar o seu e-mail e criar uma senha. Logo após, será necessário " +
@@ -752,23 +751,19 @@ function ligarEventos() {
     }
   });
 
-  // REPRODUÇÃO DA MENSAGEM INICIAL NO PRIMEIRO GESTO
-  const tentarTocarBoasVindas = () => {
+  // REPRODUÇÃO DA MENSAGEM INICIAL E ANÚNCIO DOS CAMPOS DE TEXTO
+  const tentarTocarBoasVindas = async () => {
     fala.destravar();
     if (mensagemBoasVindasPendente && !tocandoBoasVindas) {
       const texto = mensagemBoasVindasPendente;
       mensagemBoasVindasPendente = null;
       tocandoBoasVindas = true;
 
-      fala.falar(texto, { temServidor: estado.temServidor })
-        .then(() => { tocandoBoasVindas = false; })
-        .catch(() => { tocandoBoasVindas = false; });
-      return true;
+      await fala.falar(texto, { temServidor: estado.temServidor });
+      tocandoBoasVindas = false;
     }
-    return false;
   };
 
-  // ANÚNCIO DOS CAMPOS DE TEXTO
   const mapeamentoVozCampos = [
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
     { id: "#login-senha", texto: "Campo de senha" },
@@ -781,17 +776,25 @@ function ligarEventos() {
     const elemento = $(id);
     if (!elemento) return;
 
-    elemento.addEventListener("focus", () => {
-      // Se tocou pela primeira vez no campo, toca as boas-vindas e não interrompe
-      if (tentarTocarBoasVindas()) return;
-      if (tocandoBoasVindas) return;
-
+    elemento.addEventListener("focus", async () => {
+      fala.destravar();
+      
+      // Se houver instrução de boas-vindas pendente, toca ela primeiro
+      if (mensagemBoasVindasPendente) {
+        await tentarTocarBoasVindas();
+      }
+      
+      // Em seguida, narra o nome do campo focado
       fala.falar(texto, { temServidor: estado.temServidor });
     });
   });
 
-  // PRIMEIRO GESTO EM QUALQUER ÁREA DA TELA
-  const primeiraInteracaoGeral = () => {
+  // PRIMEIRO GESTO EM QUALQUER ÁREA DA TELA (EXCETO DIRETO NOS CAMPOS)
+  const primeiraInteracaoGeral = (e) => {
+    // Se o toque foi direto em um dos campos de texto, o evento focus cuidará da ordem
+    if (e.target && e.target.closest("#login-usuario, #login-senha, #campo-chave-setup")) {
+      return;
+    }
     tentarTocarBoasVindas();
   };
 

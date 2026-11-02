@@ -33,7 +33,7 @@ export function aoMudarEstado(callback) {
   ouvintes.push(callback);
 }
 
-/** Libera o audio e o motor de sintese no primeiro toque. */
+/** Libera o audio nos navegadores no primeiro toque. */
 export function destravar() {
   if (destravado) return;
   destravado = true;
@@ -48,8 +48,6 @@ export function destravar() {
   if ("speechSynthesis" in window) {
     try {
       speechSynthesis.getVoices();
-      const falaInicial = new SpeechSynthesisUtterance("");
-      speechSynthesis.speak(falaInicial);
     } catch {}
   }
 }
