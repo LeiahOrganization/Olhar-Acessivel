@@ -6,11 +6,14 @@ export const PADRAO = {
   nomeUsuario: "",
 
   // --- IA de visão ---
+  // A chave fica vazia no front-end porque o backend/.env do laboratório gerencia a API Groq
   apiKey: "",
   endpoint: "https://api.groq.com/openai/v1",
   modelo: "qwen/qwen3.6-27b",
 
-  // --- Backend opcional ---
+  // --- Backend ---
+  // Caso o servidor do laboratório tenha um endereço fixo (ex: "https://servidor-lab.ifce.edu.br"),
+  // você pode colocá-lo entre as aspas abaixo. Se deixado em branco "", o app tenta usar o servidor local.
   servidor: "",
 
   // --- Voz e Acessibilidade ---

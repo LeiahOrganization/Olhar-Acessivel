@@ -42,7 +42,7 @@ function irParaVista(destino) {
 
   const barra = $(".barra");
   if (barra) {
-    barra.hidden = (destino === "login" || destino === "setup-chave");
+    barra.hidden = (destino === "login");
   }
 
   document.querySelector(`.vista[data-vista="${destino}"] h1`)?.focus?.();
@@ -55,12 +55,7 @@ function verificarFluxoAcesso() {
     return;
   }
 
-  if (!config.apiKey && !estado.temServidor) {
-    irParaVista("setup-chave");
-    anunciar("Informe a chave da API da Groq para continuar.");
-    return;
-  }
-
+  // Redireciona diretamente para a tela de captura/câmera após o login
   irParaVista("capturar");
   ligarCamera();
 }
@@ -145,12 +140,6 @@ async function capturar() {
   if (estado.ocupado) return;
   fala.destravar();
   limparErro();
-
-  if (!estado.temServidor && !config.apiKey) {
-    mostrarErro("Informe a chave da API para começar.");
-    verificarFluxoAcesso();
-    return;
-  }
 
   const video = $("#video");
   if (camera.ativa() && video?.videoWidth) {
@@ -565,7 +554,7 @@ function atualizarPainelSistema() {
         ["Modo", "Direto (Navegador)"],
         ["Provedor", config.endpoint],
         ["Modelo de Visão", config.modelo],
-        ["Chave da API", config.apiKey ? "Configurada neste aparelho" : "Não informada"],
+        ["Chave da API", config.apiKey ? "Configurada neste aparelho" : "Gerenciada pelo backend"],
       ];
 
   lista.replaceChildren(
@@ -610,21 +599,9 @@ function ligarEventos() {
 
     limparErro();
     salvar({ usuarioLogado: true, nomeUsuario: usuario });
+    config.usuarioLogado = true;
+    config.nomeUsuario = usuario;
     anunciar("Login efetuado com sucesso.");
-    verificarFluxoAcesso();
-  });
-
-  // Salvar Chave Setup
-  $("#btn-salvar-setup-chave")?.addEventListener("click", async () => {
-    const chave = $("#campo-chave-setup")?.value.trim();
-    if (!chave) {
-      mostrarErro("Insira uma chave da API válida.");
-      return;
-    }
-    salvar({ apiKey: chave });
-    if ($("#campo-chave-ajustes")) $("#campo-chave-ajustes").value = chave;
-    limparErro();
-    anunciar("Chave salva com sucesso.");
     verificarFluxoAcesso();
   });
 
@@ -744,25 +721,21 @@ function ligarEventos() {
     }
   });
 
-  // TEXTO DO AVISO INICIAL
+  // TEXTO DO AVISO INICIAL (simplificado para o ambiente escolar)
   const textoAvisoInstrucao = 
-    "Aviso de acessibilidade. Como é seu primeiro login, será necessária a ajuda de um auxiliar " +
-    "para colocar o seu e-mail e criar uma senha. Logo após, será necessário entrar no site da Groq " +
-    "para criar a sua própria chave API, para copiar e colar no aplicativo.";
+    "Aviso de acessibilidade. Caso precise de suporte para preencher o seu usuário e senha, " +
+    "solicite a ajuda de um tutor ou monitor para realizar o seu primeiro acesso.";
 
   const mapeamentoVozCampos = [
     { id: "#aviso-ajuda", texto: textoAvisoInstrucao },
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
     { id: "#login-senha", texto: "Campo de senha" },
-    { id: "#campo-chave-setup", texto: "Campo da chave da API Groq" },
-    { id: "#campo-chave-ajustes", texto: "Campo da chave da API nos ajustes" },
-    { id: "#link-groq-site", texto: "Link para abrir o site da Groq" }
+    { id: "#campo-chave-ajustes", texto: "Campo da chave da API nos ajustes" }
   ];
 
   let ultimoTextoFalado = "";
   let ultimoTempoFala = 0;
 
-  // Filtro para impedir que eventos sobrepostos (pointerdown + focus + click) cancelem o som
   const falarElementoDebounced = (texto) => {
     const agora = Date.now();
     if (texto === ultimoTextoFalado && agora - ultimoTempoFala < 400) return;
@@ -778,9 +751,7 @@ function ligarEventos() {
     const elemento = $(id);
     if (!elemento) return;
 
-    // Dispara no toque direto do dedo (preserva user-activation)
     elemento.addEventListener("pointerdown", () => falarElementoDebounced(texto), { passive: true });
-    // Dispara na navegação por leitor de tela / teclado
     elemento.addEventListener("focus", () => falarElementoDebounced(texto));
   });
 
