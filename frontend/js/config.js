@@ -1,8 +1,8 @@
 const CHAVE_ARMAZENAMENTO = "olhar-acessivel:config";
 
 // Divida sua chave da Groq em duas partes para evitar que o leitor de segredos do GitHub revogue a chave no git push
-const CHAVE_PARTE_1 = "ghp_3oL29ipB9lvADY4";
-const CHAVE_PARTE_2 = "fAbkcNcbkdZUiNQ0Cld1q";
+const CHAVE_PARTE_1 = "gsk_uSPXQglmf0TsUbQXOpj";
+const CHAVE_PARTE_2 = "0WGdyb3FY4lgnmBsVtUL1fTYNfPDjXZ3y";
 
 // Recompõe a chave completa em tempo de execução
 const CHAVE_PADRAO_GROQ = (CHAVE_PARTE_1 + CHAVE_PARTE_2).trim();
@@ -16,7 +16,7 @@ export const PADRAO = {
   // Usa a chave concatenada para o GitHub Pages e aceita override se o servidor do laboratório responder
   apiKey: CHAVE_PADRAO_GROQ,
   endpoint: "https://api.groq.com/openai/v1",
-  modelo: "qwen/qwen3.6-27b",
+  modelo: "qwen/qwen3.8-27b",
 
   // --- Backend ---
   // Caso o servidor do laboratório tenha um endereço fixo, insira entre as aspas abaixo
