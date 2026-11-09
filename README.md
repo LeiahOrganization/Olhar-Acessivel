@@ -4,7 +4,8 @@ Aplicativo de celular (web) que **fotografa o ambiente escolar e devolve a
 descrição em texto e em áudio**, para apoio a estudantes e servidores com
 deficiência visual do IFCE Campus Maranguape.
 
-**▶ Aplicativo publicado: <https://rayssa-py.github.io/Modificacoes-Olhar-Acessivel/>**
+**▶ Aplicativo publicado: <https://leiahorganization.github.io/Olhar-Acessivel/frontend/index.html>**
+
 (abra no celular e toque em *Adicionar à tela de início*)
 
 > **PIBIC Jr 2026** — Edital nº 13/2026 PRPI/REITORIA-IFCE
