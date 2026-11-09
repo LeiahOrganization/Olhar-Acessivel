@@ -1,6 +1,6 @@
 // Preparo da foto antes de subir para o modelo.
-// Fotos de celular chegam com varios megabytes: reduzir no proprio aparelho
-// economiza dados moveis, acelera a resposta e cabe no limite de tokens por
+// Fotos de celular chegam com vários megabytes: reduzir no próprio aparelho
+// economiza dados móveis, acelera a resposta e cabe no limite de tokens por
 // minuto das APIs gratuitas.
 
 const LADO_MAXIMO = 1024;
@@ -31,36 +31,44 @@ export async function preparar(arquivo, ladoMaximo = LADO_MAXIMO) {
   return { blob, dataUrl: tela.toDataURL("image/jpeg", QUALIDADE), largura, altura };
 }
 
-/** Captura o quadro atual do video da camera. */
+/** Captura o quadro atual do vídeo da câmera instantaneamente no instante do clique. */
 export async function doVideo(video, ladoMaximo = LADO_MAXIMO) {
   const escala = Math.min(1, ladoMaximo / Math.max(video.videoWidth, video.videoHeight));
+  const largura = Math.max(1, Math.round(video.videoWidth * escala));
+  const altura = Math.max(1, Math.round(video.videoHeight * escala));
+
   const tela = document.createElement("canvas");
-  tela.width = Math.round(video.videoWidth * escala);
-  tela.height = Math.round(video.videoHeight * escala);
-  tela.getContext("2d").drawImage(video, 0, 0, tela.width, tela.height);
+  tela.width = largura;
+  tela.height = altura;
+  
+  const contexto = tela.getContext("2d");
+  contexto.imageSmoothingQuality = "high";
+  
+  // Desenho imediato e síncrono do frame exato do vídeo
+  contexto.drawImage(video, 0, 0, largura, altura);
 
   const blob = await new Promise((resolve) => tela.toBlob(resolve, "image/jpeg", QUALIDADE));
   return {
     blob,
     dataUrl: tela.toDataURL("image/jpeg", QUALIDADE),
-    largura: tela.width,
-    altura: tela.height,
+    largura,
+    altura,
   };
 }
 
-/** Miniatura leve para o historico e a galeria. */
+/** Miniatura leve para o histórico e a galeria. */
 export async function miniatura(blob, lado = 240) {
   const { dataUrl } = await preparar(blob, lado);
   return dataUrl;
 }
 
 async function carregar(arquivo) {
-  // createImageBitmap ja aplica a rotacao gravada no EXIF pelo celular
+  // createImageBitmap já aplica a rotação gravada no EXIF pelo celular
   if (window.createImageBitmap) {
     try {
       return await createImageBitmap(arquivo, { imageOrientation: "from-image" });
     } catch {
-      /* alguns navegadores nao aceitam a opcao; cai no caminho abaixo */
+      /* alguns navegadores não aceitam a opção; cai no caminho abaixo */
     }
   }
   const url = URL.createObjectURL(arquivo);

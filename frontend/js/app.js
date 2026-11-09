@@ -140,6 +140,7 @@ async function ligarCamera() {
 async function capturar() {
   if (estado.ocupado) return;
   fala.destravar();
+  fala.parar();
   limparErro();
 
   if (!estado.temServidor && !config.apiKey) {
@@ -147,9 +148,20 @@ async function capturar() {
     return;
   }
 
+  // Reseta resultado e foto anterior caso esteja capturando uma nova foto
+  if ($("#resultado")) $("#resultado").hidden = true;
+  if ($("#foto-previa")) {
+    $("#foto-previa").hidden = true;
+    $("#foto-previa").src = "";
+  }
+
   const video = $("#video");
   if (camera.ativa() && video?.videoWidth) {
     vibrar(35);
+    
+    // Congela a imagem do vídeo no exato momento do clique para evitar foto borrada
+    video.pause();
+
     const foto = await imagem.doVideo(video);
     await descrever(foto);
   } else {
@@ -222,6 +234,11 @@ async function descrever(foto) {
     renderizarHistorico();
   } catch (erro) {
     if ($("#resultado")) $("#resultado").hidden = true;
+    if ($("#foto-previa")) $("#foto-previa").hidden = true;
+    if ($("#video")) {
+      $("#video").hidden = false;
+      $("#video").play().catch(() => {});
+    }
     mostrarErro(erro.message || "Não foi possível gerar a descrição.");
   } finally {
     if (carregando) carregando.hidden = true;
@@ -732,16 +749,6 @@ function ligarEventos() {
   $("#dlg-avaliar")?.addEventListener("close", (evento) =>
     enviarAvaliacao(evento.target.returnValue)
   );
-
-  $("#btn-nova")?.addEventListener("click", async () => {
-    fala.parar();
-    if ($("#resultado")) $("#resultado").hidden = true;
-    if ($("#foto-previa")) $("#foto-previa").hidden = true;
-    limparErro();
-    await ligarCamera();
-    $("#btn-capturar")?.focus();
-    anunciar("Pronto para nova foto.");
-  });
 
   // Pergunta por voz
   $("#btn-ditar")?.addEventListener("click", async () => {
