@@ -1,21 +1,21 @@
-// Cliente do modelo de visao e linguagem chamado direto do navegador.
-// Funciona com qualquer endpoint compativel com a API OpenAI que aceite
-// conteudo multimodal: Groq, Google AI Studio (camada OpenAI), Ollama, vLLM.
-// E este o caminho usado quando o app esta publicado no GitHub Pages, sem
-// backend proprio no ar.
+// Cliente do modelo de visão e linguagem chamado direto do navegador.
+// Funciona com qualquer endpoint compatível com a API OpenAI que aceite
+// conteúdo multimodal: Groq, Google AI Studio (camada OpenAI), Ollama, vLLM.
+// É este o caminho usado quando o app está publicado no GitHub Pages, sem
+// backend próprio no ar.
 
 import { config } from "./config.js";
 import { SISTEMA, instrucao } from "./prompts.js";
 
-// Modelos com raciocinio explicito (qwen3, gpt-oss, deepseek-r1) podem escrever
-// a analise antes da resposta. A audiodescricao precisa sair limpa.
+// Modelos com raciocínio explícito (qwen3, gpt-oss, deepseek-r1) podem escrever
+// a análise antes da resposta. A audiodescrição precisa sair limpa.
 const RACIOCINIO = [
   /<think>[\s\S]*?<\/think>/gi,
   /<\|channel\|>analysis[\s\S]*?<\|(?:end|message)\|>/g,
   /<\|start\|>assistant<\|channel\|>final<\|message\|>/gi,
 ];
 
-// Sintetizador de voz nao le markdown: sai "asterisco asterisco" no audio.
+// Sintetizador de voz não lê markdown: sai "asterisco asterisco" no áudio.
 const MARCACOES = [
   [/^\s{0,3}#{1,6}\s*/gm, ""],
   [/\*\*([\s\S]+?)\*\*/g, "$1"],
@@ -25,8 +25,8 @@ const MARCACOES = [
   [/\n{3,}/g, "\n\n"],
 ];
 
-// Abertura de catalogo ("A imagem mostra...") gasta segundos de audio sem
-// informar nada. O prompt ja pede para evita-la; aqui vai a rede de seguranca.
+// Abertura de catálogo ("A imagem mostra...") gasta segundos de áudio sem
+// informar nada. O prompt já pede para evitá-la; aqui vai a rede de segurança.
 const ABERTURA =
   /^\s*(?:n?esta\s+)?(?:a\s+)?(?:imagem|foto(?:grafia)?|cena)\s+(?:mostra|apresenta|exibe|retrata|traz|cont[eé]m)\s+/i;
 
@@ -106,7 +106,7 @@ function traduzirErro(status, detalhe) {
   }
 }
 
-/** Descricao completa de uma vez. */
+/** Descrição completa de uma vez. */
 export async function descrever(dataUrl, modo, pergunta, sinal) {
   const resposta = await chamar(corpo(dataUrl, modo, pergunta, false), sinal);
   const dados = await resposta.json();
@@ -118,7 +118,7 @@ export async function descrever(dataUrl, modo, pergunta, sinal) {
   };
 }
 
-/** Descricao token a token: a tela ja mostra texto enquanto o modelo escreve. */
+/** Descrição token a token: a tela já mostra texto enquanto o modelo escreve. */
 export async function descreverStream(dataUrl, modo, pergunta, aoReceber, sinal) {
   const resposta = await chamar(corpo(dataUrl, modo, pergunta, true), sinal);
   const leitor = resposta.body.getReader();
@@ -190,5 +190,41 @@ export async function verificar() {
     return { ok: true, detalhe: "conectado", modelos };
   } catch (erro) {
     return { ok: false, detalhe: erro.message || "sem conexão com o provedor" };
+  }
+}
+
+/** Busca o modelo de visão mais recente disponível na conta do provedor. */
+export async function descobrirMelhorModelo(endpoint = config.endpoint, apiKey = config.apiKey) {
+  if (!apiKey) return null;
+  try {
+    const urlBase = endpoint.replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
+    const urlModelos = urlBase.endsWith("/v1") ? `${urlBase}/models` : `${urlBase}/v1/models`;
+
+    const resposta = await fetch(urlModelos, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    if (!resposta.ok) return null;
+
+    const dados = await resposta.json();
+    const lista = dados.data || [];
+
+    // Filtra modelos de visão conhecidos (linhas qwen e visão)
+    const modelosVisao = lista.filter((m) => {
+      const id = (m.id || "").toLowerCase();
+      return id.includes("qwen") || id.includes("vision");
+    });
+
+    if (!modelosVisao.length) return null;
+
+    // Ordena de forma decrescente para priorizar versões superiores (ex: qwen3.8 > qwen3.6)
+    modelosVisao.sort((a, b) =>
+      b.id.localeCompare(a.id, undefined, { numeric: true, sensitivity: "base" })
+    );
+
+    return modelosVisao[0].id;
+  } catch (erro) {
+    console.warn("Não foi possível verificar atualização automática de modelos:", erro);
+    return null;
   }
 }

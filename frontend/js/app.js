@@ -101,9 +101,19 @@ async function detectarServidor() {
     texto.textContent = estado.saudeServidor.vlm_ok ? "Servidor (Voz Neural)" : "Servidor com falha";
     return;
   }
+
   if (config.apiKey) {
     status.dataset.estado = "ok";
     texto.textContent = "Pronto";
+
+    // Consulta e atualiza automaticamente para a versão mais recente do modelo de visão
+    const modeloMaisNovo = await ia.descobrirMelhorModelo(config.endpoint, config.apiKey);
+    if (modeloMaisNovo && modeloMaisNovo !== config.modelo) {
+      console.log(`Modelo atualizado automaticamente: ${config.modelo} ➔ ${modeloMaisNovo}`);
+      config.modelo = modeloMaisNovo;
+      salvar({ modelo: modeloMaisNovo });
+      if ($("#campo-modelo")) $("#campo-modelo").value = modeloMaisNovo;
+    }
   } else {
     status.dataset.estado = "erro";
     texto.textContent = "Sem chave";
