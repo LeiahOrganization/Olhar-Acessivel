@@ -200,7 +200,8 @@ async function capturar() {
   }
 
   if (camera.ativa() && video?.videoWidth) {
-    vibrar(35);
+    // Vibração marcante e forte ao disparar a foto (duplo pulso)
+    vibrar([60, 40, 60]);
     
     // Congela a imagem do vídeo exatamente no instante da nova captura
     video.pause();
@@ -673,10 +674,13 @@ async function salvarConfiguracoesIA() {
 
 // EVENTOS
 function ligarEventos() {
-  // FEEDBACK DE VOZ UNIVERSAL EM TODOS OS BOTÕES (MANTÉM APENAS TEXTO/LETRAS)
+  // FEEDBACK DE VOZ E VIBRAÇÃO UNIVERSAL EM TODOS OS BOTÕES
   document.addEventListener("pointerdown", (evento) => {
     const botao = evento.target.closest("button, [role='button'], [role='radio']");
     if (!botao || botao.disabled) return;
+
+    // Vibração tátil leve de 15ms ao tocar em qualquer botão
+    vibrar(15);
 
     const texto = obterTextoBotao(botao);
     if (texto) {
