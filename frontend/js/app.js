@@ -112,7 +112,6 @@ async function detectarServidor() {
       console.log(`Modelo atualizado automaticamente: ${config.modelo} ➔ ${modeloMaisNovo}`);
       config.modelo = modeloMaisNovo;
       salvar({ modelo: modeloMaisNovo });
-      if ($("#campo-modelo")) $("#campo-modelo").value = modeloMaisNovo;
     }
   } else {
     status.dataset.estado = "erro";
@@ -597,7 +596,6 @@ function preencherAjustes() {
   if ($("#opt-contraste")) $("#opt-contraste").checked = config.contraste;
   if ($("#sel-fonte")) $("#sel-fonte").value = String(config.escalaFonte);
   if ($("#campo-endpoint")) $("#campo-endpoint").value = config.endpoint;
-  if ($("#campo-modelo")) $("#campo-modelo").value = config.modelo;
   if ($("#campo-servidor")) $("#campo-servidor").value = config.servidor;
   marcarModo(config.modo);
 }
@@ -649,7 +647,6 @@ function atualizarPainelSistema() {
 async function salvarConfiguracoesIA() {
   salvar({
     endpoint: $("#campo-endpoint")?.value.trim() || "https://api.groq.com/openai/v1",
-    modelo: $("#campo-modelo")?.value.trim() || "qwen/qwen3.6-27b",
     servidor: $("#campo-servidor")?.value.trim() || "",
   });
   await detectarServidor();
