@@ -1,4 +1,4 @@
-// Olhar Acessível — controlador principal
+// Olhar Acessível — controlador principal da interface
 
 import { config, salvar, baseServidor } from "./config.js";
 import { MODOS } from "./prompts.js";
@@ -16,7 +16,7 @@ import {
 const estado = {
   temServidor: false,
   saudeServidor: null,
-  atual: null,
+  atual: null,          // última descrição gerada
   ocupado: false,
   filtroBanco: "",
 };
@@ -29,7 +29,7 @@ const CRITERIOS = [
   ["neutralidade", "Neutralidade — sem opinião ou exagero?"],
 ];
 
-// NAVEGAÇÃO
+// NAVEGAÇÃO E FLUXO DE ACESSO
 function irParaVista(destino) {
   $$(".vista").forEach((vista) => {
     vista.dataset.ativa = String(vista.dataset.vista === destino);
@@ -55,7 +55,7 @@ function verificarFluxoAcesso() {
     return;
   }
 
-  // Redireciona diretamente para a tela de captura/câmera após o login
+  // Redireciona diretamente para a tela de captura após a autenticação
   irParaVista("capturar");
   ligarCamera();
 }
@@ -103,7 +103,7 @@ async function detectarServidor() {
   }
   if (config.apiKey) {
     status.dataset.estado = "ok";
-    texto.textContent = "Pronto (Voz Local)";
+    texto.textContent = "Pronto";
   } else {
     status.dataset.estado = "erro";
     texto.textContent = "Sem chave";
@@ -132,6 +132,7 @@ async function ligarCamera() {
       $("#visor-vazio .visor__texto").textContent = "Toque aqui para abrir a câmera do aparelho";
     }
     if (!mostrandoFoto() && $("#visor-vazio")) $("#visor-vazio").hidden = false;
+    console.warn(camera.traduzirErro(erro));
   }
 }
 
@@ -140,6 +141,11 @@ async function capturar() {
   if (estado.ocupado) return;
   fala.destravar();
   limparErro();
+
+  if (!estado.temServidor && !config.apiKey) {
+    mostrarErro("Nenhuma chave da API de visão foi detectada.");
+    return;
+  }
 
   const video = $("#video");
   if (camera.ativa() && video?.videoWidth) {
@@ -165,7 +171,7 @@ async function descrever(foto) {
 
   const inicio = performance.now();
   const modo = config.modo;
-  const pergunta = modo === "pergunta" ? $("#campo-pergunta").value.trim() : "";
+  const pergunta = modo === "pergunta" ? $("#campo-pergunta")?.value.trim() : "";
 
   try {
     let resultado;
@@ -252,7 +258,7 @@ function mostrarResultado(registro) {
   $("#resultado-texto").focus();
 }
 
-// ÁUDIO E VOZ NEURAL
+// ÁUDIO E VOZ
 async function ouvir(texto, { automatico = false } = {}) {
   const conteudo = texto || estado.atual?.descricao;
   if (!conteudo) return;
@@ -265,7 +271,7 @@ async function ouvir(texto, { automatico = false } = {}) {
       $("#btn-ouvir")?.focus();
       return;
     }
-    mostrarErro(erro.message || "Não consegui sintetizar a voz.");
+    mostrarErro(erro.message || "Não consegui falar a descrição.");
   }
 }
 
@@ -280,15 +286,14 @@ async function carregarVozes() {
   const preencher = async () => {
     const vozes = await fala.vozesDisponiveis(estado.temServidor);
     seletor.replaceChildren();
-    
-    const opcaoAuto = estado.temServidor
-      ? "Automática (Voz Neural de Alta Qualidade)"
-      : "Automática (Melhor Voz do Aparelho)";
-    seletor.appendChild(new Option(opcaoAuto, ""));
-
-    for (const voz of vozes) {
-      seletor.appendChild(new Option(voz.rotulo, voz.id));
-    }
+    const automatica = new Option(
+      estado.temServidor
+        ? "Automática (Voz Neural de Alta Qualidade)"
+        : "Automática (Melhor Voz do Aparelho)",
+      ""
+    );
+    seletor.appendChild(automatica);
+    for (const voz of vozes) seletor.appendChild(new Option(voz.rotulo, voz.id));
     seletor.value = config.voz || "";
   };
   await preencher();
@@ -303,7 +308,7 @@ async function renderizarHistorico() {
   lista.setAttribute("aria-busy", "false");
 
   if (!registros.length) {
-    lista.replaceChildren(criarVazio("Nenhuma descrição ainda."));
+    lista.replaceChildren(criarVazio("Nenhuma descrição ainda. Tire a primeira foto na aba Descrever."));
     return;
   }
 
@@ -320,7 +325,11 @@ async function renderizarHistorico() {
         </span>`;
       item.querySelector(".item__texto").textContent = registro.descricao;
       item.querySelector(".item__meta").textContent =
-        `${dataLegivel(registro.criadoEm)} · ${MODOS[registro.modo]?.rotulo || registro.modo}`;
+        `${dataLegivel(registro.criadoEm)} · ${MODOS[registro.modo]?.rotulo || registro.modo} · ${registro.modelo}`;
+      item.setAttribute(
+        "aria-label",
+        `Ouvir descrição de ${dataLegivel(registro.criadoEm)}: ${registro.descricao}`
+      );
       item.addEventListener("click", () => {
         estado.atual = registro;
         ouvir(registro.descricao);
@@ -391,8 +400,8 @@ async function renderizarBanco() {
           criadoEm: i.criadoEm,
           url: i.miniatura,
         }));
-  } catch {
-    galeria.replaceChildren(criarVazio("Não foi possível carregar o banco de imagens."));
+  } catch (erro) {
+    galeria.replaceChildren(criarVazio(`Não foi possível carregar o banco: ${erro.message}`));
     return;
   }
 
@@ -402,10 +411,14 @@ async function renderizarBanco() {
 
   const percentual = Math.min(100, Math.round((total / 200) * 100));
   if ($("#progresso-preenchida")) $("#progresso-preenchida").style.width = `${percentual}%`;
-  if ($("#progresso-texto")) $("#progresso-texto").textContent = `${total} de 200 a 300 imagens.`;
+  if ($("#progresso-texto")) {
+    $("#progresso-texto").textContent = `${total} de 200 a 300 imagens da Meta 1 (${percentual}% da meta mínima).`;
+  }
 
   if (!itens.length) {
-    galeria.replaceChildren(criarVazio("Nenhuma imagem nesta categoria."));
+    galeria.replaceChildren(
+      criarVazio("Nenhuma imagem nesta categoria. Use “Guardar no banco” depois de descrever uma foto.")
+    );
     return;
   }
 
@@ -424,6 +437,7 @@ async function renderizarBanco() {
   );
 }
 
+// DIÁLOGO: GUARDAR NO BANCO
 function montarCategorias() {
   const seletor = $("#guardar-categoria");
   if (seletor) seletor.replaceChildren(...CATEGORIAS.map(([id, rotulo]) => new Option(rotulo, id)));
@@ -437,7 +451,10 @@ async function guardarNoBanco(valor) {
 
   try {
     if (estado.temServidor) {
-      await servidor.enviarParaBanco(estado.atual.blob, categoria, legenda, usarDescricao ? estado.atual.descricao : "");
+      await servidor.enviarParaBanco(
+        estado.atual.blob, categoria, legenda,
+        usarDescricao ? estado.atual.descricao : ""
+      );
     } else {
       await bd.banco.salvar({
         id: estado.atual.id,
@@ -451,7 +468,7 @@ async function guardarNoBanco(valor) {
         miniatura: estado.atual.miniatura,
       });
     }
-    anunciar("Imagem guardada no banco.");
+    anunciar(`Imagem guardada no banco, categoria ${rotuloCategoria(categoria)}.`);
     if ($("#guardar-legenda")) $("#guardar-legenda").value = "";
     renderizarBanco();
   } catch (erro) {
@@ -459,6 +476,7 @@ async function guardarNoBanco(valor) {
   }
 }
 
+// DIÁLOGO: AVALIAÇÃO
 function montarCriterios() {
   const alvo = $("#criterios");
   if (!alvo) return;
@@ -486,6 +504,7 @@ function montarCriterios() {
         const texto = document.createElement("span");
         texto.textContent = String(nota);
         rotuloNota.append(entrada, texto);
+        rotuloNota.setAttribute("aria-label", `${rotulo} nota ${nota}`);
         notas.appendChild(rotuloNota);
       }
       bloco.append(legenda, notas);
@@ -497,7 +516,10 @@ function montarCriterios() {
 async function enviarAvaliacao(valor) {
   if (valor !== "enviar" || !estado.atual) return;
   const notas = Object.fromEntries(
-    CRITERIOS.map(([chave]) => [chave, Number($(`#criterios input[name="${chave}"]:checked`)?.value || 4)])
+    CRITERIOS.map(([chave]) => [
+      chave,
+      Number($(`#criterios input[name="${chave}"]:checked`)?.value || 4),
+    ])
   );
 
   const registro = {
@@ -514,18 +536,20 @@ async function enviarAvaliacao(valor) {
   };
 
   await bd.avaliacoes.salvar(registro);
-  if (estado.temServidor) servidor.enviarAvaliacao(registro).catch(() => {});
+  if (estado.temServidor) {
+    servidor.enviarAvaliacao(registro).catch(() => {});
+  }
   if ($("#avaliar-comentario")) $("#avaliar-comentario").value = "";
-  anunciar("Avaliação registrada.");
+  anunciar("Avaliação registrada. Obrigado por contribuir com a pesquisa.");
 }
 
+// AJUSTES
 function preencherAjustes() {
   if ($("#sel-velocidade")) $("#sel-velocidade").value = String(config.velocidade);
   if ($("#opt-autoplay")) $("#opt-autoplay").checked = config.autoplay;
   if ($("#opt-vibrar")) $("#opt-vibrar").checked = config.vibrar;
   if ($("#opt-contraste")) $("#opt-contraste").checked = config.contraste;
   if ($("#sel-fonte")) $("#sel-fonte").value = String(config.escalaFonte);
-  if ($("#campo-chave-ajustes")) $("#campo-chave-ajustes").value = config.apiKey;
   if ($("#campo-endpoint")) $("#campo-endpoint").value = config.endpoint;
   if ($("#campo-modelo")) $("#campo-modelo").value = config.modelo;
   if ($("#campo-servidor")) $("#campo-servidor").value = config.servidor;
@@ -546,15 +570,21 @@ function atualizarPainelSistema() {
   const linhas = estado.temServidor
     ? [
         ["Modo", "Servidor do projeto (Voz Neural Ativa)"],
-        ["Endereço do Servidor", baseServidor()],
-        ["Modelo de Visão", estado.saudeServidor.vlm_model],
-        ["Motor de Áudio", `${estado.saudeServidor.tts_engine} · ${estado.saudeServidor.tts_voz}`],
+        ["Endereço", baseServidor()],
+        ["Modelo de visão", estado.saudeServidor.vlm_model],
+        ["Conexão do modelo", estado.saudeServidor.vlm_detalhe],
+        ["Voz", `${estado.saudeServidor.tts_engine} · ${estado.saudeServidor.tts_voz}`],
+        ["Imagens no banco", String(estado.saudeServidor.imagens_no_banco)],
+        ["Descrições geradas", String(estado.saudeServidor.descricoes_geradas)],
+        ["Avaliações", String(estado.saudeServidor.avaliacoes)],
       ]
     : [
-        ["Modo", "Direto (Navegador)"],
+        ["Modo", "Direto (sem servidor)"],
         ["Provedor", config.endpoint],
-        ["Modelo de Visão", config.modelo],
-        ["Chave da API", config.apiKey ? "Configurada neste aparelho" : "Gerenciada pelo backend"],
+        ["Modelo de visão", config.modelo],
+        ["Chave da API", config.apiKey ? "Gerenciada automaticamente" : "Não informada"],
+        ["Voz", "síntese do próprio aparelho"],
+        ["Dados da pesquisa", "guardados neste aparelho (exportáveis)"],
       ];
 
   lista.replaceChildren(
@@ -572,7 +602,6 @@ function atualizarPainelSistema() {
 
 async function salvarConfiguracoesIA() {
   salvar({
-    apiKey: $("#campo-chave-ajustes")?.value.trim() || "",
     endpoint: $("#campo-endpoint")?.value.trim() || "https://api.groq.com/openai/v1",
     modelo: $("#campo-modelo")?.value.trim() || "qwen/qwen3.6-27b",
     servidor: $("#campo-servidor")?.value.trim() || "",
@@ -605,7 +634,7 @@ function ligarEventos() {
     verificarFluxoAcesso();
   });
 
-  // Abas
+  // Navegação entre abas
   $$(".barra__item").forEach((botao) => {
     botao.addEventListener("click", () => {
       const destino = botao.dataset.ir;
@@ -616,12 +645,13 @@ function ligarEventos() {
     });
   });
 
-  // Modos
+  // Modos de descrição
   $$(".modos .chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       salvar({ modo: chip.dataset.modo });
       marcarModo(chip.dataset.modo);
       if (chip.dataset.modo === "pergunta") $("#campo-pergunta")?.focus();
+      anunciar(`Modo ${MODOS[chip.dataset.modo]?.rotulo || chip.dataset.modo} selecionado.`);
     });
   });
 
@@ -649,7 +679,7 @@ function ligarEventos() {
     });
   }
 
-  // Áudio e Ações
+  // Resultado
   $("#btn-ouvir")?.addEventListener("click", () => ouvir());
   $("#btn-parar")?.addEventListener("click", () => fala.parar());
   fala.aoMudarEstado(alternarBotoesAudio);
@@ -660,19 +690,48 @@ function ligarEventos() {
       await navigator.clipboard.writeText(estado.atual.descricao);
       anunciar("Descrição copiada.");
     } catch {
-      mostrarErro("O navegador não permitiu copiar.");
+      mostrarErro("O navegador não permitiu copiar. Selecione o texto manualmente.");
+    }
+  });
+
+  $("#btn-compartilhar")?.addEventListener("click", async () => {
+    if (!estado.atual) return;
+    const dados = {
+      title: "Olhar Acessível",
+      text: estado.atual.descricao,
+    };
+    try {
+      if (navigator.canShare?.({ files: [new File([estado.atual.blob], "foto.jpg", { type: "image/jpeg" })] })) {
+        await navigator.share({
+          ...dados,
+          files: [new File([estado.atual.blob], "foto.jpg", { type: "image/jpeg" })],
+        });
+      } else if (navigator.share) {
+        await navigator.share(dados);
+      } else {
+        await navigator.clipboard.writeText(estado.atual.descricao);
+        anunciar("Compartilhamento indisponível. A descrição foi copiada.");
+      }
+    } catch {
+      /* cancelado */
     }
   });
 
   $("#btn-guardar")?.addEventListener("click", () => {
-    if (estado.atual) $("#dlg-guardar")?.showModal();
+    if (!estado.atual) return;
+    $("#dlg-guardar")?.showModal();
   });
-  $("#dlg-guardar")?.addEventListener("close", (evento) => guardarNoBanco(evento.target.returnValue));
+  $("#dlg-guardar")?.addEventListener("close", (evento) =>
+    guardarNoBanco(evento.target.returnValue)
+  );
 
   $("#btn-avaliar")?.addEventListener("click", () => {
-    if (estado.atual) $("#dlg-avaliar")?.showModal();
+    if (!estado.atual) return;
+    $("#dlg-avaliar")?.showModal();
   });
-  $("#dlg-avaliar")?.addEventListener("close", (evento) => enviarAvaliacao(evento.target.returnValue));
+  $("#dlg-avaliar")?.addEventListener("close", (evento) =>
+    enviarAvaliacao(evento.target.returnValue)
+  );
 
   $("#btn-nova")?.addEventListener("click", async () => {
     fala.parar();
@@ -681,6 +740,26 @@ function ligarEventos() {
     limparErro();
     await ligarCamera();
     $("#btn-capturar")?.focus();
+    anunciar("Pronto para nova foto.");
+  });
+
+  // Pergunta por voz
+  $("#btn-ditar")?.addEventListener("click", async () => {
+    const botao = $("#btn-ditar");
+    if (!botao) return;
+    botao.dataset.gravando = "true";
+    anunciar("Pode falar a pergunta.");
+    try {
+      const texto = await fala.ouvirPergunta();
+      if (texto) {
+        if ($("#campo-pergunta")) $("#campo-pergunta").value = texto;
+        anunciar(`Pergunta registrada: ${texto}`);
+      }
+    } catch (erro) {
+      mostrarErro(erro.message);
+    } finally {
+      botao.dataset.gravando = "false";
+    }
   });
 
   // Ajustes
@@ -690,7 +769,9 @@ function ligarEventos() {
     aplicarAparencia();
   });
   $("#sel-voz")?.addEventListener("change", (e) => salvar({ voz: e.target.value }));
-  $("#sel-velocidade")?.addEventListener("change", (e) => salvar({ velocidade: Number(e.target.value) }));
+  $("#sel-velocidade")?.addEventListener("change", (e) =>
+    salvar({ velocidade: Number(e.target.value) })
+  );
   $("#opt-autoplay")?.addEventListener("change", (e) => salvar({ autoplay: e.target.checked }));
   $("#opt-vibrar")?.addEventListener("change", (e) => salvar({ vibrar: e.target.checked }));
   $("#opt-contraste")?.addEventListener("change", (e) => {
@@ -709,28 +790,35 @@ function ligarEventos() {
     anunciar("Estado do sistema atualizado.");
   });
 
-  // Pesquisa
+  // Dados da pesquisa
   $("#btn-exportar-json")?.addEventListener("click", async () => {
     const dados = await bd.exportarJson();
     bd.baixar("olhar-acessivel-dados.json", JSON.stringify(dados, null, 2));
+    anunciar("Arquivo JSON gerado.");
   });
   $("#btn-exportar-csv")?.addEventListener("click", async () => {
     const arquivos = await bd.exportarCsv();
     for (const [nome, conteudo] of Object.entries(arquivos)) {
       if (conteudo) bd.baixar(`olhar-acessivel-${nome}`, conteudo, "text/csv;charset=utf-8");
     }
+    anunciar("Arquivos CSV gerados.");
+  });
+  $("#btn-limpar-historico")?.addEventListener("click", async () => {
+    if (!confirm("Apagar todas as descrições guardadas neste aparelho?")) return;
+    await bd.descricoes.limpar();
+    renderizarHistorico();
+    anunciar("Histórico apagado.");
   });
 
-  // TEXTO DO AVISO INICIAL (simplificado para o ambiente escolar)
+  // Texto e feedback auditivo no login / aviso
   const textoAvisoInstrucao = 
     "Aviso de acessibilidade. Caso precise de suporte para preencher o seu usuário e senha, " +
-    "solicite a ajuda de um tutor ou monitor para realizar o seu primeiro acesso.";
+    "solicite a ajuda de um tutor ou monitor para realizar este primeiro acesso.";
 
   const mapeamentoVozCampos = [
     { id: "#aviso-ajuda", texto: textoAvisoInstrucao },
     { id: "#login-usuario", texto: "Campo de e-mail ou usuário" },
-    { id: "#login-senha", texto: "Campo de senha" },
-    { id: "#campo-chave-ajustes", texto: "Campo da chave da API nos ajustes" }
+    { id: "#login-senha", texto: "Campo de senha" }
   ];
 
   let ultimoTextoFalado = "";
@@ -755,7 +843,19 @@ function ligarEventos() {
     elemento.addEventListener("focus", () => falarElementoDebounced(texto));
   });
 
+  // Atalhos de teclado
+  document.addEventListener("keydown", (evento) => {
+    if (evento.target.matches("input, textarea, select")) return;
+    if (evento.key === " " || evento.key === "Enter") {
+      if (document.activeElement === document.body) { evento.preventDefault(); capturar(); }
+    }
+    if (evento.key === "Escape") fala.parar();
+  });
+
+  // Libera áudio do navegador no primeiro toque
   document.addEventListener("pointerdown", () => fala.destravar(), { once: true });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarAparencia);
+  window.addEventListener("pagehide", () => camera.desligar());
 }
 
 iniciar();

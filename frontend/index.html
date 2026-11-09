@@ -16,10 +16,13 @@
 </head>
 <body>
   <a class="pular-para-conteudo" href="#conteudo">Pular para o conteúdo principal</a>
+
+  <!-- Avisos lidos pelo leitor de tela (TalkBack / VoiceOver). -->
   <p class="sr-only" id="anuncio" role="status" aria-live="assertive" aria-atomic="true"></p>
 
   <div class="app">
-    <!-- TOPO -->
+
+    <!-- ===================== TOPO ===================== -->
     <header class="topo">
       <div class="marca">
         <span class="marca__simbolo" aria-hidden="true">👁️</span>
@@ -29,17 +32,19 @@
         </span>
       </div>
       <div class="topo__acoes">
-        <button class="status" id="status" type="button" data-estado="carregando" aria-label="Estado da conexão. Toque para ver os detalhes.">
+        <button class="status" id="status" type="button" data-estado="carregando"
+                aria-label="Estado da conexão. Toque para ver os detalhes.">
           <span class="status__ponto" aria-hidden="true"></span>
           <span class="status__texto" id="status-texto">Verificando…</span>
         </button>
-        <button class="btn-icone" id="btn-tema" type="button" aria-label="Alternar entre tema claro e escuro">🌙</button>
+        <button class="btn-icone" id="btn-tema" type="button"
+                aria-label="Alternar entre tema claro e escuro">🌙</button>
       </div>
     </header>
 
     <main class="conteudo" id="conteudo">
 
-      <!-- VISTA 1: LOGIN -->
+      <!-- ============ VISTA 1: LOGIN ============ -->
       <section class="vista" data-vista="login" data-ativa="true" aria-labelledby="titulo-login">
         <h1 class="sr-only" id="titulo-login">Acesso ao aplicativo</h1>
         <div class="cartao cartao--destaque">
@@ -54,7 +59,7 @@
             aria-label="Aviso de acessibilidade. Toque para ouvir as instruções do primeiro acesso."
             style="background: var(--surface-2); border-left: 5px solid var(--acento); padding: 14px; border-radius: var(--raio-p); margin-bottom: 16px; font-size: 0.95rem; cursor: pointer;"
           >
-            ♿ <strong>Aviso de Acessibilidade (Toque para ouvir):</strong> Se você possui deficiência visual e precisa de suporte para digitar seu usuário e senha, peça ajuda a um monitor ou tutor para realizar este primeiro acesso.
+            ♿ <strong>Aviso de Acessibilidade (Toque para ouvir):</strong> Caso precise de suporte para preencher o seu usuário e senha, solicite a ajuda de um tutor ou monitor para realizar este primeiro acesso.
           </div>
 
           <form id="form-login" onsubmit="return false;">
@@ -71,26 +76,36 @@
         </div>
       </section>
 
-      <!-- VISTA 2: CAPTURAR -->
+      <!-- ============ VISTA 2: CAPTURAR E DESCREVER ============ -->
       <section class="vista" data-vista="capturar" aria-labelledby="titulo-capturar">
         <h1 class="sr-only" id="titulo-capturar">Fotografar e descrever</h1>
 
+        <!-- modos de descrição -->
         <div class="modos" role="radiogroup" aria-label="Tipo de descrição">
-          <button class="chip" type="button" role="radio" aria-checked="true" data-modo="detalhada">Detalhada</button>
-          <button class="chip" type="button" role="radio" aria-checked="false" data-modo="rapida">Rápida</button>
-          <button class="chip" type="button" role="radio" aria-checked="false" data-modo="texto">Ler texto</button>
-          <button class="chip" type="button" role="radio" aria-checked="false" data-modo="ambiente">Ambiente</button>
-          <button class="chip" type="button" role="radio" aria-checked="false" data-modo="pergunta">Perguntar</button>
+          <button class="chip" type="button" role="radio" aria-checked="true"
+                  data-modo="detalhada">Detalhada</button>
+          <button class="chip" type="button" role="radio" aria-checked="false"
+                  data-modo="rapida">Rápida</button>
+          <button class="chip" type="button" role="radio" aria-checked="false"
+                  data-modo="texto">Ler texto</button>
+          <button class="chip" type="button" role="radio" aria-checked="false"
+                  data-modo="ambiente">Ambiente</button>
+          <button class="chip" type="button" role="radio" aria-checked="false"
+                  data-modo="pergunta">Perguntar</button>
         </div>
 
+        <!-- campo de pergunta (modo "Perguntar") -->
         <div class="pergunta" id="bloco-pergunta" hidden>
           <label class="rotulo" for="campo-pergunta">O que você quer saber sobre a imagem?</label>
           <div class="pergunta__linha">
-            <input class="campo" id="campo-pergunta" type="text" enterkeyhint="done" placeholder="Ex.: qual é o número da sala?" autocomplete="off">
-            <button class="btn-icone btn-icone--forte" id="btn-ditar" type="button" aria-label="Ditar a pergunta por voz">🎤</button>
+            <input class="campo" id="campo-pergunta" type="text" enterkeyhint="done"
+                   placeholder="Ex.: qual é o número da sala?" autocomplete="off">
+            <button class="btn-icone btn-icone--forte" id="btn-ditar" type="button"
+                    aria-label="Ditar a pergunta por voz">🎤</button>
           </div>
         </div>
 
+        <!-- visor: a área inteira dispara a foto -->
         <button class="visor" id="visor" type="button" aria-describedby="visor-dica">
           <video class="visor__video" id="video" playsinline muted autoplay></video>
           <img class="visor__foto" id="foto-previa" alt="" hidden>
@@ -105,6 +120,7 @@
         </button>
         <p class="dica" id="visor-dica">
           Aponte a câmera para o que deseja conhecer e toque na área acima.
+          A descrição sai em texto e em áudio.
         </p>
 
         <button class="botao botao--gigante" id="btn-capturar" type="button">
@@ -119,9 +135,12 @@
             <span aria-hidden="true">🔄</span> Trocar câmera
           </button>
         </div>
-        <input class="sr-only" id="arquivo" type="file" accept="image/*" aria-label="Escolher uma imagem do aparelho">
-        <input class="sr-only" id="arquivo-camera" type="file" accept="image/*" capture="environment" aria-label="Tirar foto com a câmera">
+        <input class="sr-only" id="arquivo" type="file" accept="image/*"
+               aria-label="Escolher uma imagem do aparelho">
+        <input class="sr-only" id="arquivo-camera" type="file" accept="image/*"
+               capture="environment" aria-label="Tirar foto com a câmera">
 
+        <!-- ============ RESULTADO ============ -->
         <article class="resultado" id="resultado" hidden aria-labelledby="resultado-titulo">
           <h2 class="resultado__titulo" id="resultado-titulo">Descrição</h2>
           <div class="resultado__meta" id="resultado-meta"></div>
@@ -137,10 +156,18 @@
           </div>
 
           <div class="acoes-grade">
-            <button class="botao botao--suave" id="btn-copiar" type="button"><span aria-hidden="true">📋</span> Copiar texto</button>
-            <button class="botao botao--suave" id="btn-compartilhar" type="button"><span aria-hidden="true">📤</span> Compartilhar</button>
-            <button class="botao botao--suave" id="btn-guardar" type="button"><span aria-hidden="true">🗂️</span> Guardar no banco</button>
-            <button class="botao botao--suave" id="btn-avaliar" type="button"><span aria-hidden="true">⭐</span> Avaliar descrição</button>
+            <button class="botao botao--suave" id="btn-copiar" type="button">
+              <span aria-hidden="true">📋</span> Copiar texto
+            </button>
+            <button class="botao botao--suave" id="btn-compartilhar" type="button">
+              <span aria-hidden="true">📤</span> Compartilhar
+            </button>
+            <button class="botao botao--suave" id="btn-guardar" type="button">
+              <span aria-hidden="true">🗂️</span> Guardar no banco
+            </button>
+            <button class="botao botao--suave" id="btn-avaliar" type="button">
+              <span aria-hidden="true">⭐</span> Avaliar descrição
+            </button>
           </div>
 
           <button class="botao botao--fantasma" id="btn-nova" type="button">
@@ -151,7 +178,7 @@
         <p class="aviso" id="erro" role="alert" hidden></p>
       </section>
 
-      <!-- HISTÓRICO -->
+      <!-- ============ VISTA: HISTÓRICO ============ -->
       <section class="vista" data-vista="historico" aria-labelledby="titulo-historico">
         <h1 class="titulo-vista" id="titulo-historico">Descrições recentes</h1>
         <p class="dica">Toque em um item para ouvir a descrição novamente.</p>
@@ -161,19 +188,23 @@
         </button>
       </section>
 
-      <!-- BANCO DE IMAGENS -->
+      <!-- ============ VISTA: BANCO DE IMAGENS ============ -->
       <section class="vista" data-vista="banco" aria-labelledby="titulo-banco">
         <h1 class="titulo-vista" id="titulo-banco">Banco de imagens</h1>
-        <p class="dica">Acervo do ambiente escolar organizado por categoria.</p>
+        <p class="dica">
+          Acervo do ambiente escolar organizado por categoria (Meta 1 do projeto).
+        </p>
+
         <div class="progresso">
           <div class="progresso__barra"><span id="progresso-preenchida"></span></div>
           <p class="progresso__texto" id="progresso-texto">Carregando…</p>
         </div>
+
         <div class="filtros" id="filtros-banco" role="group" aria-label="Filtrar por categoria"></div>
         <div class="galeria" id="galeria-banco" aria-busy="true"></div>
       </section>
 
-      <!-- AJUSTES -->
+      <!-- ============ VISTA: AJUSTES ============ -->
       <section class="vista" data-vista="ajustes" aria-labelledby="titulo-ajustes">
         <h1 class="titulo-vista" id="titulo-ajustes">Ajustes</h1>
 
@@ -218,33 +249,57 @@
 
         <fieldset class="grupo">
           <legend>Inteligência artificial</legend>
-          <label class="rotulo" for="campo-chave-ajustes">Chave da API</label>
-          <input class="campo" id="campo-chave-ajustes" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…">
-
-          <label class="rotulo" for="campo-endpoint">Endereço da API de visão</label>
-          <input class="campo" id="campo-endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://api.groq.com/openai/v1">
-
-          <label class="rotulo" for="campo-modelo">Modelo de visão e linguagem</label>
-          <input class="campo" id="campo-modelo" type="text" autocomplete="off" spellcheck="false" placeholder="qwen/qwen3.6-27b">
 
           <label class="rotulo" for="campo-servidor">Servidor do projeto (opcional)</label>
-          <input class="campo" id="campo-servidor" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="deixe em branco para funcionar sem servidor">
+          <input class="campo" id="campo-servidor" type="url" inputmode="url"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="deixe em branco para funcionar sem servidor">
+          <p class="dica dica--campo">
+            Com o backend do projeto no ar, o aplicativo passa a usar as vozes
+            neurais em português, o banco de imagens central e o registro das
+            avaliações. Sem ele, tudo funciona neste aparelho.
+          </p>
 
-          <button class="botao botao--suave" id="btn-salvar-ia" type="button" style="margin-top: 12px;">Salvar configurações</button>
+          <label class="rotulo" for="campo-endpoint">Endereço da API de visão</label>
+          <input class="campo" id="campo-endpoint" type="url" inputmode="url"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="https://api.groq.com/openai/v1">
+
+          <label class="rotulo" for="campo-modelo">Modelo de visão e linguagem</label>
+          <input class="campo" id="campo-modelo" type="text" autocomplete="off"
+                 spellcheck="false" placeholder="qwen/qwen3.6-27b">
+          <p class="dica dica--campo">
+            Trocar o modelo aqui é o que permite a comparação prevista na Meta 2
+            do projeto — a mesma foto, modelos diferentes.
+          </p>
+
+          <button class="botao botao--suave" id="btn-salvar-ia" type="button" style="margin-top: 12px;">
+            Salvar configurações
+          </button>
         </fieldset>
 
         <fieldset class="grupo">
           <legend>Dados da pesquisa</legend>
+          <p class="dica dica--campo">
+            Exporte o que foi coletado neste aparelho para analisar no relatório
+            (Etapa 4) — descrições, avaliações e legendas do banco.
+          </p>
           <div class="acoes-linha">
-            <button class="botao botao--suave" id="btn-exportar-json" type="button"><span aria-hidden="true">⬇️</span> Exportar JSON</button>
-            <button class="botao botao--suave" id="btn-exportar-csv" type="button"><span aria-hidden="true">📊</span> Exportar CSV</button>
+            <button class="botao botao--suave" id="btn-exportar-json" type="button">
+              <span aria-hidden="true">⬇️</span> Exportar JSON
+            </button>
+            <button class="botao botao--suave" id="btn-exportar-csv" type="button">
+              <span aria-hidden="true">📊</span> Exportar CSV
+            </button>
           </div>
         </fieldset>
 
         <div class="grupo">
           <h2 class="grupo__titulo">Estado do sistema</h2>
           <dl class="sistema" id="sistema"></dl>
-          <button class="botao botao--suave" id="btn-atualizar-saude" type="button">Verificar novamente</button>
+          <button class="botao botao--suave" id="btn-atualizar-saude" type="button">
+            Verificar novamente
+          </button>
         </div>
 
         <p class="creditos">
@@ -255,7 +310,7 @@
       </section>
     </main>
 
-    <!-- BARRA INFERIOR -->
+    <!-- ===================== BARRA INFERIOR ===================== -->
     <nav class="barra" aria-label="Seções do aplicativo">
       <button class="barra__item" type="button" data-ir="capturar">
         <span class="barra__icone" aria-hidden="true">📷</span>
@@ -276,18 +331,23 @@
     </nav>
   </div>
 
-  <!-- DIÁLOGO: GUARDAR BANCO -->
+  <!-- ===================== DIÁLOGO: GUARDAR NO BANCO ===================== -->
   <dialog class="dialogo" id="dlg-guardar" aria-labelledby="dlg-guardar-titulo">
     <form method="dialog" class="dialogo__conteudo">
       <h2 id="dlg-guardar-titulo">Guardar no banco de imagens</h2>
+
       <label class="rotulo" for="guardar-categoria">Categoria</label>
       <select class="campo" id="guardar-categoria"></select>
+
       <label class="rotulo" for="guardar-legenda">Legenda (opcional)</label>
-      <input class="campo" id="guardar-legenda" type="text" placeholder="Ex.: laboratório de informática">
+      <input class="campo" id="guardar-legenda" type="text"
+             placeholder="Ex.: laboratório de informática, bancada da janela">
+
       <label class="opcao">
         <input type="checkbox" id="guardar-usar-descricao" checked>
         <span>Salvar também a descrição gerada como referência</span>
       </label>
+
       <div class="dialogo__acoes">
         <button class="botao botao--fantasma" value="cancelar" type="submit">Cancelar</button>
         <button class="botao botao--primario" value="salvar" type="submit">Guardar</button>
@@ -295,21 +355,30 @@
     </form>
   </dialog>
 
-  <!-- DIÁLOGO: AVALIAR -->
+  <!-- ===================== DIÁLOGO: AVALIAR ===================== -->
   <dialog class="dialogo" id="dlg-avaliar" aria-labelledby="dlg-avaliar-titulo">
     <form method="dialog" class="dialogo__conteudo">
       <h2 id="dlg-avaliar-titulo">Avaliar a descrição</h2>
+      <p class="dica">
+        Dê uma nota de 1 (ruim) a 5 (excelente) para cada critério. As respostas
+        alimentam a avaliação qualitativa da pesquisa.
+      </p>
+
       <div id="criterios"></div>
+
       <label class="rotulo" for="avaliar-comentario">Comentário (opcional)</label>
-      <textarea class="campo" id="avaliar-comentario" rows="3" placeholder="O que faltou ou sobrou?"></textarea>
+      <textarea class="campo" id="avaliar-comentario" rows="3"
+                placeholder="O que faltou ou sobrou na descrição?"></textarea>
+
       <label class="opcao">
         <input type="checkbox" id="avaliar-pcd">
         <span>Sou pessoa com deficiência visual</span>
       </label>
       <label class="opcao">
         <input type="checkbox" id="avaliar-consentimento" checked>
-        <span>Autorizo o uso anônimo desta avaliação</span>
+        <span>Autorizo o uso anônimo desta avaliação na pesquisa</span>
       </label>
+
       <div class="dialogo__acoes">
         <button class="botao botao--fantasma" value="cancelar" type="submit">Cancelar</button>
         <button class="botao botao--primario" value="enviar" type="submit">Enviar avaliação</button>
