@@ -29,6 +29,18 @@ const CRITERIOS = [
   ["neutralidade", "Neutralidade — sem opinião ou exagero?"],
 ];
 
+// EXTRAÇÃO DE TEXTO DO BOTÃO PARA LEITURA DE VOZ
+function obterTextoBotao(elemento) {
+  if (!elemento) return "";
+  
+  // 1. Dá prioridade ao aria-label (ex: botões de ícone ou itens do histórico)
+  const ariaLabel = elemento.getAttribute("aria-label");
+  if (ariaLabel) return ariaLabel.trim();
+
+  // 2. Se não houver aria-label, pega o texto visível dentro do botão
+  return elemento.textContent?.trim() || "";
+}
+
 // NAVEGAÇÃO E FLUXO DE ACESSO
 function irParaVista(destino) {
   $$(".vista").forEach((vista) => {
@@ -658,6 +670,18 @@ async function salvarConfiguracoesIA() {
 
 // EVENTOS
 function ligarEventos() {
+  // FEEDBACK DE VOZ UNIVERSAL EM TODOS OS BOTÕES
+  document.addEventListener("pointerdown", (evento) => {
+    const botao = evento.target.closest("button, [role='button'], [role='radio']");
+    if (!botao || botao.disabled) return;
+
+    const texto = obterTextoBotao(botao);
+    if (texto) {
+      fala.destravar();
+      fala.falar(texto, { temServidor: estado.temServidor });
+    }
+  }, { passive: true });
+
   // Login
   $("#form-login")?.addEventListener("submit", (e) => {
     e.preventDefault();
