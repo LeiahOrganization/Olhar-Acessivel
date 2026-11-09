@@ -29,16 +29,19 @@ const CRITERIOS = [
   ["neutralidade", "Neutralidade — sem opinião ou exagero?"],
 ];
 
-// EXTRAÇÃO DE TEXTO DO BOTÃO PARA LEITURA DE VOZ
+// EXTRAÇÃO DE TEXTO DO BOTÃO PARA LEITURA DE VOZ (IGNORA EMOJIS E SÍMBOLOS UNICODE)
 function obterTextoBotao(elemento) {
   if (!elemento) return "";
   
   // 1. Dá prioridade ao aria-label (ex: botões de ícone ou itens do histórico)
   const ariaLabel = elemento.getAttribute("aria-label");
-  if (ariaLabel) return ariaLabel.trim();
+  const textoBruto = ariaLabel || elemento.textContent || "";
 
-  // 2. Se não houver aria-label, pega o texto visível dentro do botão
-  return elemento.textContent?.trim() || "";
+  // 2. Remove emojis/pictogramas e normaliza espaços múltiplos
+  return textoBruto
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // NAVEGAÇÃO E FLUXO DE ACESSO
@@ -670,7 +673,7 @@ async function salvarConfiguracoesIA() {
 
 // EVENTOS
 function ligarEventos() {
-  // FEEDBACK DE VOZ UNIVERSAL EM TODOS OS BOTÕES
+  // FEEDBACK DE VOZ UNIVERSAL EM TODOS OS BOTÕES (LÊ RÓTULOS LIMPANDO EMOJIS)
   document.addEventListener("pointerdown", (evento) => {
     const botao = evento.target.closest("button, [role='button'], [role='radio']");
     if (!botao || botao.disabled) return;
