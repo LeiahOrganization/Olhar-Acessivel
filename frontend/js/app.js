@@ -148,18 +148,37 @@ async function capturar() {
     return;
   }
 
-  // Reseta resultado e foto anterior caso esteja capturando uma nova foto
-  if ($("#resultado")) $("#resultado").hidden = true;
-  if ($("#foto-previa")) {
-    $("#foto-previa").hidden = true;
-    $("#foto-previa").src = "";
+  const video = $("#video");
+  const fotoPrevia = $("#foto-previa");
+  const resultado = $("#resultado");
+
+  // Prepara o feed de vídeo para uma nova captura se houver foto estática anterior
+  if (video && camera.ativa()) {
+    if (resultado) resultado.hidden = true;
+    if (fotoPrevia) {
+      fotoPrevia.hidden = true;
+      fotoPrevia.src = "";
+    }
+
+    video.hidden = false;
+    if ($("#visor-vazio")) $("#visor-vazio").hidden = true;
+
+    // Se a transmissão estava pausada na foto anterior, retoma o vídeo ao vivo
+    if (video.paused) {
+      try {
+        await video.play();
+        // Tempo de resposta de 200ms para a câmera atualizar o enquadramento atual
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      } catch (erro) {
+        console.warn("Erro ao reativar feed da câmera:", erro);
+      }
+    }
   }
 
-  const video = $("#video");
   if (camera.ativa() && video?.videoWidth) {
     vibrar(35);
     
-    // Congela a imagem do vídeo no exato momento do clique para evitar foto borrada
+    // Congela a imagem do vídeo exatamente no instante da nova captura
     video.pause();
 
     const foto = await imagem.doVideo(video);
